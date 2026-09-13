@@ -9,13 +9,13 @@ import { useAppStore } from './hooks/useAppStore'
 import { useReminders } from './hooks/useReminders'
 import type { View } from './types'
 
-const VIEWS: { id: View; label: string }[] = [
-  { id: 'today', label: '今日' },
-  { id: 'calendar', label: '日历' },
-  { id: 'todos', label: '待办' },
-  { id: 'schedule', label: '课表' },
-  { id: 'days', label: '倒数日' },
-  { id: 'notes', label: '便签' },
+const VIEWS: { id: View; label: string; icon: string }[] = [
+  { id: 'today', label: '今日', icon: '☀️' },
+  { id: 'calendar', label: '日历', icon: '📅' },
+  { id: 'todos', label: '待办', icon: '✦' },
+  { id: 'schedule', label: '课表', icon: '📚' },
+  { id: 'days', label: '倒数日', icon: '🔥' },
+  { id: 'notes', label: '便签', icon: '🌸' },
 ]
 
 function parseView(): View {
@@ -74,7 +74,7 @@ export default function App() {
           <span className="mark">日</span>
           <div>
             <strong>颗秒日事</strong>
-            <p>日历 · 待办 · 课表 · 倒数日 · 便签</p>
+            <p>青春校园 · 粉蓝火焰</p>
           </div>
         </div>
         <nav className="tabs desktop-nav" aria-label="功能">
@@ -241,7 +241,10 @@ export default function App() {
       <nav className="bottom-nav" aria-label="移动导航">
         {VIEWS.map((v) => (
           <button key={v.id} className={view === v.id && !hits ? 'active' : ''} onClick={() => open(v.id)}>
-            {v.label}
+            <span className="nav-icon" aria-hidden>
+              {v.icon}
+            </span>
+            <span>{v.label}</span>
           </button>
         ))}
       </nav>

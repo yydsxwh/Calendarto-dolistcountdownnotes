@@ -117,3 +117,58 @@ export function upcomingExams(exams: Exam[], fromISO: string): Exam[] {
     .filter((e) => e.date >= fromISO)
     .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
 }
+
+/** 给 Android 本地通知预排：未来几节课和考试的提醒时刻。 */
+export function upcomingReminderSlots(
+  courses: Course[],
+  exams: Exam[],
+  settings: ReminderSettings,
+  now = Date.now(),
+  weeksAhead = 2,
+): DueReminder[] {
+  if (!settings.enabled) return []
+  const slots: DueReminder[] = []
+
+  for (const course of courses) {
+    if (course.remindMinutes <= 0) continue
+    for (let w = 0; w < weeksAhead; w++) {
+      const first = nextClassDate(course.weekday, course.startTime)
+      const start = new Date(first)
+      start.setDate(first.getDate() + w * 7)
+      const fireAt = start.getTime() - course.remindMinutes * 60_000
+      if (fireAt <= now) continue
+      slots.push({
+        id: course.id,
+        key: `class:${course.id}:${start.toISOString()}`,
+        title: `上课提醒 · ${course.name}`,
+        body: `${course.startTime}-${course.endTime} ${course.location || ''}`.trim() +
+          ` · 还有 ${course.remindMinutes} 分钟，现在出发以免迟到`,
+        kind: 'class',
+        fireAt,
+      })
+    }
+  }
+
+  for (const exam of exams) {
+    const start = combineDateTime(exam.date, exam.startTime)
+    const offsets = [exam.remindMinutes]
+    if (settings.examAlsoHourBefore && exam.remindMinutes !== 60) offsets.push(60)
+    for (const minutes of offsets) {
+      if (minutes <= 0) continue
+      const fireAt = start.getTime() - minutes * 60_000
+      if (fireAt <= now) continue
+      const when =
+        minutes >= 1440 ? `${Math.round(minutes / 1440)} 天后` : `${minutes} 分钟后`
+      slots.push({
+        id: exam.id,
+        key: `exam:${exam.id}:${minutes}:${exam.date}T${exam.startTime}`,
+        title: `考试提醒 · ${exam.name}`,
+        body: `${exam.date} ${exam.startTime}${exam.endTime ? `-${exam.endTime}` : ''} ${exam.location || ''} · ${when}开考，请核对时间以免记错错过`,
+        kind: 'exam',
+        fireAt,
+      })
+    }
+  }
+
+  return slots.sort((a, b) => a.fireAt - b.fireAt).slice(0, 48)
+}

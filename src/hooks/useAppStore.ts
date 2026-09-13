@@ -5,6 +5,7 @@ import {
   createCourse,
   createExam,
   createNote,
+  createTerm,
   createTodo,
   emptyData,
   exportBlob,
@@ -20,6 +21,8 @@ import type {
   Note,
   Priority,
   ReminderSettings,
+  Term,
+  TimetableViewSettings,
   Todo,
 } from '../types'
 
@@ -115,14 +118,28 @@ export function useAppStore() {
   }, [])
 
   const addCourse = useCallback((name: string, extras?: Partial<Omit<Course, 'id' | 'name' | 'createdAt'>>) => {
-    const course = createCourse(name, extras)
-    if (!course.name) return
-    setData((prev) => ({ ...prev, courses: [...prev.courses, course] }))
+    setData((prev) => {
+      const course = createCourse(name, {
+        ...extras,
+        termId: extras?.termId ?? prev.currentTermId,
+      })
+      if (!course.name) return prev
+      return { ...prev, courses: [...prev.courses, course] }
+    })
   }, [])
 
   const addCourses = useCallback((courses: Course[]) => {
     if (courses.length === 0) return
-    setData((prev) => ({ ...prev, courses: [...prev.courses, ...courses] }))
+    setData((prev) => ({
+      ...prev,
+      courses: [
+        ...prev.courses,
+        ...courses.map((course) => ({
+          ...course,
+          termId: course.termId || prev.currentTermId,
+        })),
+      ],
+    }))
   }, [])
 
   const updateCourse = useCallback((id: string, patch: Partial<Course>) => {
@@ -173,6 +190,105 @@ export function useAppStore() {
       ...prev,
       reminderSettings: { ...prev.reminderSettings, ...patch },
     }))
+  }, [])
+
+  const currentTerm = useMemo(
+    () => data.terms.find((term) => term.id === data.currentTermId) ?? data.terms[0],
+    [data.currentTermId, data.terms],
+  )
+
+  const setTermStart = useCallback((termStart?: string) => {
+    setData((prev) => ({
+      ...prev,
+      termStart: termStart || undefined,
+      terms: prev.terms.map((term) =>
+        term.id === prev.currentTermId ? { ...term, startDate: termStart || '' } : term,
+      ),
+    }))
+  }, [])
+
+  const addTerm = useCallback((extras?: Partial<Term>) => {
+    setData((prev) => {
+      const term = createTerm(extras)
+      return {
+        ...prev,
+        terms: [...prev.terms, term],
+        currentTermId: term.id,
+        termStart: term.startDate || undefined,
+      }
+    })
+  }, [])
+
+  const updateTerm = useCallback((id: string, patch: Partial<Term>) => {
+    setData((prev) => {
+      const terms = prev.terms.map((term) => (term.id === id ? { ...term, ...patch } : term))
+      const current = terms.find((term) => term.id === prev.currentTermId)
+      return {
+        ...prev,
+        terms,
+        termStart: current?.startDate || undefined,
+      }
+    })
+  }, [])
+
+  const removeTerm = useCallback((id: string) => {
+    setData((prev) => {
+      if (prev.terms.length <= 1) return prev
+      const terms = prev.terms.filter((term) => term.id !== id)
+      const currentTermId = prev.currentTermId === id ? terms[0].id : prev.currentTermId
+      const current = terms.find((term) => term.id === currentTermId)
+      return {
+        ...prev,
+        terms,
+        currentTermId,
+        termStart: current?.startDate || undefined,
+      }
+    })
+  }, [])
+
+  const setCurrentTerm = useCallback((id: string) => {
+    setData((prev) => {
+      const current = prev.terms.find((term) => term.id === id)
+      if (!current) return prev
+      return {
+        ...prev,
+        currentTermId: id,
+        termStart: current.startDate || undefined,
+      }
+    })
+  }, [])
+
+  const updateTimetableView = useCallback((patch: Partial<TimetableViewSettings>) => {
+    setData((prev) => ({
+      ...prev,
+      timetableView: { ...prev.timetableView, ...patch },
+    }))
+  }, [])
+
+  const toggleHiddenHour = useCallback((hour: number) => {
+    setData((prev) => {
+      const hidden = new Set(prev.timetableView.hiddenHours)
+      if (hidden.has(hour)) hidden.delete(hour)
+      else hidden.add(hour)
+      if (hidden.size >= 24) return prev
+      return {
+        ...prev,
+        timetableView: { ...prev.timetableView, hiddenHours: [...hidden].sort((a, b) => a - b) },
+      }
+    })
+  }, [])
+
+  const toggleHiddenWeekday = useCallback((weekday: number) => {
+    setData((prev) => {
+      const hidden = new Set(prev.timetableView.hiddenWeekdays)
+      if (hidden.has(weekday)) hidden.delete(weekday)
+      else hidden.add(weekday)
+      if (hidden.size >= 7) return prev
+      return {
+        ...prev,
+        timetableView: { ...prev.timetableView, hiddenWeekdays: [...hidden].sort((a, b) => a - b) },
+      }
+    })
   }, [])
 
   const clearAll = useCallback(() => setData(emptyData()), [])
@@ -238,7 +354,16 @@ export function useAppStore() {
     addExams,
     updateExam,
     removeExam,
+    currentTerm,
     updateReminderSettings,
+    setTermStart,
+    addTerm,
+    updateTerm,
+    removeTerm,
+    setCurrentTerm,
+    updateTimetableView,
+    toggleHiddenHour,
+    toggleHiddenWeekday,
     clearAll,
     downloadBackup,
     importBackup,

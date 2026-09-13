@@ -23,3 +23,15 @@ dist-ssr
 *.sln
 *.sw?
 schedule_walkthrough.mp4
+
+# Android / Capacitor build leftovers
+android/.gradle
+android/.idea
+android/local.properties
+android/app/build
+android/app/release
+android/build
+android/captures
+*.apk
+*.aab
+*.ap_

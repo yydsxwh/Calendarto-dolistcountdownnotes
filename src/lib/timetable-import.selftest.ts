@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import * as XLSX from 'xlsx'
 import { importTimetableFile } from './timetable-import'
 import { hydrateTimetableOcr } from './timetable-ocr'
-import { collectDueReminders } from './reminders'
+import { collectDueReminders, upcomingReminderSlots } from './reminders'
 import { defaultReminderSettings } from '../types'
 import { normalizeClockInput } from './periods'
 
@@ -128,6 +128,34 @@ if (!ocrMath || ocrMath.teacher !== '王老师' || ocrMath.location !== '教学�
 if (ocr.courses.some((c) => c.name === '空课')) throw new Error('invalid weekday/time should be dropped')
 if (ocr.exams[0]?.kind !== 'midterm' || ocr.exams[0].startTime !== '14:00') {
   throw new Error(`ocr hydrate exam failed ${JSON.stringify(ocr.exams[0])}`)
+}
+
+const nativeSlots = upcomingReminderSlots(
+  [
+    {
+      id: 'c1',
+      name: '高等数学',
+      weekday: 1,
+      startTime: '08:00',
+      endTime: '09:40',
+      remindMinutes: 15,
+      color: '#2563eb',
+      createdAt: 1,
+    },
+  ],
+  [
+    {
+      ...finalExam,
+      date: '2099-06-01',
+      startTime: '10:00',
+      remindMinutes: 1440,
+    },
+  ],
+  { ...settings, enabled: true, examAlsoHourBefore: true },
+  Date.parse('2099-01-01T00:00:00'),
+)
+if (!nativeSlots.some((s) => s.kind === 'exam' && s.title.includes('高等数学'))) {
+  throw new Error(`android reminder slots missing exam ${JSON.stringify(nativeSlots)}`)
 }
 
 console.log(

@@ -2,6 +2,36 @@ export type View = 'today' | 'calendar' | 'todos' | 'schedule' | 'days' | 'notes
 
 export type ExamKind = 'midterm' | 'final' | 'makeup' | 'other'
 
+export type TermKind = 'fall' | 'spring' | 'summer' | 'winter' | 'practice' | 'intern'
+
+export interface Term {
+  id: string
+  /** 学年起始年，例如 2026 表示 2026-2027 学年 */
+  yearStart: number
+  kind: TermKind
+  title?: string
+  /** 开学 / 行课开始日期 */
+  startDate: string
+  /** 本学期一共几周 */
+  weekCount: number
+}
+
+export interface ClassPeriod {
+  start: string
+  end: string
+}
+
+export interface TimetableViewSettings {
+  /** 1=周一起始，7=周日起始 */
+  weekStartsOn: 1 | 7
+  showOffWeekCourses: boolean
+  /** 隐藏的小时行，0–23 */
+  hiddenHours: number[]
+  /** 隐藏的星期列，1–7 */
+  hiddenWeekdays: number[]
+  classPeriods: ClassPeriod[]
+}
+
 export interface Course {
   id: string
   name: string
@@ -14,6 +44,7 @@ export interface Course {
   color: string
   remindMinutes: number
   createdAt: number
+  termId?: string
 }
 
 export interface Exam {
@@ -37,14 +68,14 @@ export interface ReminderSettings {
 }
 
 export const COURSE_COLORS = [
-  '#0ea5e9',
-  '#8b5cf6',
-  '#10b981',
-  '#f59e0b',
-  '#ef4444',
-  '#ec4899',
-  '#14b8a6',
-  '#6366f1',
+  '#2563eb',
+  '#fb7185',
+  '#ff6b35',
+  '#ffb703',
+  '#e11d48',
+  '#38bdf8',
+  '#f472b6',
+  '#1d4ed8',
 ] as const
 
 export const defaultReminderSettings = (): ReminderSettings => ({
@@ -99,6 +130,11 @@ export interface AppData {
   courses: Course[]
   exams: Exam[]
   reminderSettings: ReminderSettings
+  terms: Term[]
+  currentTermId?: string
+  timetableView: TimetableViewSettings
+  /** 兼容旧数据：等于当前学期 startDate */
+  termStart?: string
 }
 
 export const NOTE_COLORS = [
@@ -111,12 +147,12 @@ export const NOTE_COLORS = [
 ] as const
 
 export const COUNTDOWN_COLORS = [
-  '#0ea5e9',
-  '#f59e0b',
-  '#ef4444',
-  '#8b5cf6',
-  '#10b981',
-  '#ec4899',
+  '#2563eb',
+  '#ff6b35',
+  '#e11d48',
+  '#fb7185',
+  '#38bdf8',
+  '#ffb703',
 ] as const
 
 export const COUNTDOWN_EMOJIS = ['🎯', '🎂', '✈️', '📚', '💍', '🎓', '🏠', '🎉'] as const

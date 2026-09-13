@@ -53,6 +53,15 @@ export function minutesOf(hhmm: string): number {
   return h * 60 + m
 }
 
+export function clockFromMinutes(total: number): string {
+  const wrapped = ((total % (24 * 60)) + 24 * 60) % (24 * 60)
+  return padTime(Math.floor(wrapped / 60), wrapped % 60)
+}
+
+export function addClockMinutes(hhmm: string, delta: number): string {
+  return clockFromMinutes(minutesOf(hhmm) + delta)
+}
+
 export function durationMinutes(start: string, end: string): number {
   return Math.max(0, minutesOf(end) - minutesOf(start))
 }
@@ -64,20 +73,36 @@ export function formatDuration(start: string, end: string): string {
   return `${mins} 分钟`
 }
 
-export function periodRange(from: number, to: number): { start: string; end: string } | null {
-  const a = DEFAULT_PERIODS[from - 1]
-  const b = DEFAULT_PERIODS[to - 1]
+export type ClassPeriod = { start: string; end: string }
+
+let periodTable: ClassPeriod[] = DEFAULT_PERIODS
+
+/** 导入「第 N 节」时用当前学期的上课时间表。 */
+export function setPeriodTable(periods?: ClassPeriod[]) {
+  periodTable = periods && periods.length > 0 ? periods : DEFAULT_PERIODS
+}
+
+export function periodRange(
+  from: number,
+  to: number,
+  periods: ClassPeriod[] = periodTable,
+): { start: string; end: string } | null {
+  const a = periods[from - 1]
+  const b = periods[to - 1]
   if (!a || !b) return null
   return { start: a.start, end: b.end }
 }
 
-export function parsePeriodHint(raw: string): { start: string; end: string } | null {
+export function parsePeriodHint(
+  raw: string,
+  periods: ClassPeriod[] = periodTable,
+): { start: string; end: string } | null {
   const ranged = parseTimeRange(raw)
   if (ranged) return ranged
   const span = raw.match(/第?\s*(\d{1,2})\s*[-~到至]\s*(\d{1,2})\s*节/)
-  if (span) return periodRange(Number(span[1]), Number(span[2]))
+  if (span) return periodRange(Number(span[1]), Number(span[2]), periods)
   const single = raw.match(/第?\s*(\d{1,2})\s*节/)
-  if (single) return periodRange(Number(single[1]), Number(single[1]))
+  if (single) return periodRange(Number(single[1]), Number(single[1]), periods)
   return null
 }
 

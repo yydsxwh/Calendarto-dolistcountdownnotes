@@ -16,5 +16,15 @@ cd "$ROOT"
 npx vite build --base=/products/days/
 ssh -i "$KEY" -o IdentitiesOnly=yes "$HOST" "mkdir -p '$DEST'"
 scp -i "$KEY" -o IdentitiesOnly=yes -r "$ROOT/dist/." "$HOST:$DEST/"
+
+APK_SRC="${DEPLOY_APK_FILE:-$ROOT/android/app/build/outputs/apk/debug/app-debug.apk}"
+if [[ -f "$APK_SRC" ]]; then
+  scp -i "$KEY" -o IdentitiesOnly=yes "$APK_SRC" "$HOST:$DEST/kemiao-days.apk"
+  echo "Published Android APK $HOST:$DEST/kemiao-days.apk"
+else
+  echo "No APK at $APK_SRC; skip install-package upload. Run npm run android:apk first."
+fi
+
 echo "Published $HOST:$DEST"
 echo "Open https://www.yydsxwh.com/products/days/"
+echo "Listing: https://www.yydsxwh.com/products"

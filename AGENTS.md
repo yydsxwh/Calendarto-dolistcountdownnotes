@@ -52,9 +52,11 @@ Standard scripts are defined in `package.json`:
   Photo import resizes to JPEG ≤1600px before `POST /api/days/timetable-ocr`
   (phone originals often fail the first vision call). HEIC is rejected with
   a “导出 JPG” hint. Hydrate also accepts `weekday: 周一` and
-  `startTime: 第1-2节`. Hidden hour/weekday blocks show ▾ / › expand
-  chips on the grid; weekday “隐藏” was removed from column headers so
-  hiding dawn rows does not hide 周几. Terms live in
+  `startTime: 第1-2节`. Hidden dawn rows expand from a ▾ chip in the
+  时间 header — do not put 隐藏 on weekday columns. Course import lives
+  on 周课表; exam import lives on 考试时间表 (table by date). Import
+  infers class periods from printed clocks (e.g. 08:30) and hides hours
+  outside the first/last class. Terms live in
   `AppData.terms` (学年 / 第1·2学期 / 寒暑假小学期 / 社会实践 /
   实习). Import writes into the current term. `npm run test:timetable`
   covers import + week-grid hide/layout.

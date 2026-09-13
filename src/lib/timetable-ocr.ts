@@ -114,6 +114,26 @@ function resolveWeekday(value: unknown): number | null {
   return n >= 1 && n <= 7 ? n : null
 }
 
+/** Models sometimes emit 0–6 (Monday=0) instead of 1–7 (Monday=1). */
+export function remapZeroBasedWeekdays<T extends { weekday?: unknown }>(items: T[]): T[] {
+  const nums = items
+    .map((item) => Number((item as { weekday?: unknown }).weekday))
+    .filter((n) => Number.isFinite(n))
+  if (
+    nums.length > 0 &&
+    nums.every((n) => n >= 0 && n <= 6) &&
+    nums.some((n) => n === 0) &&
+    !nums.some((n) => n === 7)
+  ) {
+    return items.map((item) => {
+      const n = Number((item as { weekday?: unknown }).weekday)
+      if (!Number.isFinite(n)) return item
+      return { ...item, weekday: n + 1 }
+    })
+  }
+  return items
+}
+
 export function hydrateTimetableOcr(
   raw: TimetableOcrPayload,
   defaults: { classRemindMinutes: number; examRemindMinutes: number },
@@ -121,8 +141,9 @@ export function hydrateTimetableOcr(
   const warnings = warningList(raw.warnings)
   const courses: Course[] = []
   const exams: Exam[] = []
+  const drafts = remapZeroBasedWeekdays(raw.courses || [])
 
-  for (const item of raw.courses || []) {
+  for (const item of drafts) {
     const rec = item as unknown as Record<string, unknown>
     const name = text(rec.name)
     const weekday = resolveWeekday(rec.weekday)

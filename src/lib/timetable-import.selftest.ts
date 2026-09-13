@@ -3,7 +3,8 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as XLSX from 'xlsx'
 import { importTimetableFile } from './timetable-import'
-import { hydrateTimetableOcr } from './timetable-ocr'
+import { hiddenHoursAroundCourses, inferClassPeriods } from './period-infer'
+import { hydrateTimetableOcr, remapZeroBasedWeekdays } from './timetable-ocr'
 import { collectDueReminders, upcomingReminderSlots } from './reminders'
 import { defaultReminderSettings } from '../types'
 import { normalizeClockInput } from './periods'
@@ -148,6 +149,35 @@ if (!linear || linear.weekday !== 1 || linear.startTime !== '08:00' || linear.en
 }
 if (!physics || physics.weekday !== 3 || physics.startTime !== '14:00' || physics.endTime !== '15:40') {
   throw new Error(`weekday 三 / 5-6节 hydrate failed ${JSON.stringify(physics)}`)
+}
+
+const remapped = remapZeroBasedWeekdays([
+  { name: 'A', weekday: 0, startTime: '08:30', endTime: '10:00' },
+  { name: 'B', weekday: 2, startTime: '08:30', endTime: '10:00' },
+])
+if (remapped[0].weekday !== 1 || remapped[1].weekday !== 3) {
+  throw new Error(`0-based weekday remap failed ${JSON.stringify(remapped)}`)
+}
+const zeroHydrate = hydrateTimetableOcr(
+  {
+    courses: [
+      { name: '早课', weekday: 0, startTime: '08:30', endTime: '10:05' },
+      { name: '午课', weekday: 1, startTime: '10:25', endTime: '12:00' },
+    ],
+    exams: [],
+  },
+  defaults,
+)
+if (zeroHydrate.courses[0]?.weekday !== 1 || zeroHydrate.courses[1]?.weekday !== 2) {
+  throw new Error(`0-based hydrate weekday failed ${JSON.stringify(zeroHydrate.courses)}`)
+}
+const inferred = inferClassPeriods(zeroHydrate.courses)
+if (inferred[0]?.start !== '08:30') {
+  throw new Error(`infer periods should follow 08:30, got ${JSON.stringify(inferred)}`)
+}
+const hidden = hiddenHoursAroundCourses(zeroHydrate.courses)
+if (hidden.includes(9) || !hidden.includes(0) || !hidden.includes(23)) {
+  throw new Error(`hidden hours around classes failed ${JSON.stringify(hidden)}`)
 }
 
 const nativeSlots = upcomingReminderSlots(

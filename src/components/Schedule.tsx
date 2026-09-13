@@ -6,11 +6,13 @@ import {
   WEEKDAY_LABELS,
   durationMinutes,
   formatDuration,
+  jsWeekday,
   normalizeClockInput,
   setPeriodTable,
 } from '../lib/periods'
 import { TIMETABLE_ACCEPT } from '../lib/file-kinds'
-import { importTimetableAny } from '../lib/import-any'
+import { importTimetableAny, type ImportFocus } from '../lib/import-any'
+import { hiddenHoursAroundCourses, inferClassPeriods } from '../lib/period-infer'
 import { upcomingExams } from '../lib/reminders'
 import { sampleExamCsv, sampleGridCsv, type TimetableImportResult } from '../lib/timetable-import'
 import { termLabel } from '../lib/terms'
@@ -53,7 +55,7 @@ function TimeInput({
   )
 }
 
-type Tab = 'week' | 'import' | 'exams' | 'remind'
+type Tab = 'week' | 'exams' | 'remind'
 
 export default function Schedule({
   store,
@@ -75,7 +77,6 @@ export default function Schedule({
   const [importing, setImporting] = useState(false)
   const [review, setReview] = useState<TimetableImportResult | null>(null)
   const [previewUrl, setPreviewUrl] = useState('')
-  const [userHint, setUserHint] = useState('')
   const [weekMonday, setWeekMonday] = useState(() => startOfWeek(new Date(), 1))
   const [now, setNow] = useState(() => new Date())
   const [selectedId, setSelectedId] = useState<string>()
@@ -198,6 +199,14 @@ export default function Schedule({
   }
 
   const applyResult = (result: TimetableImportResult, label: string) => {
+    if (result.courses.length) {
+      const periods = inferClassPeriods(result.courses)
+      store.updateTimetableView({
+        classPeriods: periods,
+        hiddenHours: hiddenHoursAroundCourses(result.courses),
+      })
+      setPeriodTable(periods)
+    }
     store.addCourses(result.courses)
     store.addExams(result.exams)
     const bits = [
@@ -216,12 +225,16 @@ export default function Schedule({
     setTab(result.kind === 'exams' ? 'exams' : 'week')
   }
 
-  const onImport = async (file: File) => {
+  const onImport = async (file: File, focus: ImportFocus = 'auto') => {
     setPeriodTable(view.classPeriods)
     setImporting(true)
     setStatus('')
     if (previewUrl) URL.revokeObjectURL(previewUrl)
     setPreviewUrl(file.type.startsWith('image/') ? URL.createObjectURL(file) : '')
+    const hint =
+      focus === 'exams'
+        ? '这是教务处考试安排表。抽出科目、日期、开考时间、考场。不要把课程表当成考试。'
+        : '这是教务处周课表。表头从左到右若是周一到周日，weekday 1=周一（不是周日）。格子里印了几点就用几点，不要改成整点 8:00。'
     try {
       const result = await importTimetableAny(
         file,
@@ -229,18 +242,22 @@ export default function Schedule({
           classRemindMinutes: settings.classDefaultMinutes,
           examRemindMinutes: settings.examDefaultMinutes,
         },
-        userHint,
+        hint,
+        focus,
       )
       if (result.source === 'ai') {
         setReview(result)
         setStatus(
-          `AI 已识别 ${result.courses.length} 门课` +
-            (result.exams.length ? `、${result.exams.length} 场考试` : '') +
-            '。请核对课程、地点、时间、老师、时长后再写入课表。',
+          focus === 'exams'
+            ? `AI 已识别 ${result.exams.length} 场考试。请核对接日期、开考时间后再写入考试表。`
+            : `AI 已识别 ${result.courses.length} 门课` +
+                (result.exams.length ? `、${result.exams.length} 场考试` : '') +
+                '。请核对星期、地点、钟点后再写入课表。',
         )
-        setTab('import')
+        setTab(focus === 'exams' ? 'exams' : 'week')
       } else {
         applyResult(result, file.name)
+        setTab(focus === 'exams' ? 'exams' : result.kind === 'exams' ? 'exams' : 'week')
       }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : '导入失败')
@@ -282,7 +299,6 @@ export default function Schedule({
         {(
           [
             ['week', '周课表'],
-            ['import', '导入'],
             ['exams', '考试时间表'],
             ['remind', '提醒'],
           ] as const
@@ -334,6 +350,20 @@ export default function Schedule({
               </button>
             </div>
             <div className="row wrap" style={{ marginTop: 10 }}>
+              <label className="btn primary file-btn">
+                {importing ? '正在识别课表…' : '导入课表'}
+                <input
+                  type="file"
+                  hidden
+                  accept={TIMETABLE_ACCEPT}
+                  disabled={importing}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) void onImport(file, 'courses')
+                    e.target.value = ''
+                  }}
+                />
+              </label>
               <button className="btn ghost" onClick={() => setShowAdd((v) => !v)}>
                 {showAdd ? '收起加课' : '加一节课'}
               </button>
@@ -473,64 +503,15 @@ export default function Schedule({
             open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
           />
-        </>
-      )}
-
-      {tab === 'import' && (
-        <div className="card">
-          <h3>从表格或图片导入</h3>
-          <p className="muted">
-            识别结果会写入当前学期（{currentTerm ? termLabel(currentTerm) : '未选择'}）。手机原图会先压缩再识别。iPhone HEIC 请先导出 JPG。表格（xlsx / xls / csv /
-            ods）在浏览器里直接解析。照片、截图、PDF 走主站 MathCode
-            同一套视觉模型，抽出课程、教室、时间、老师和时长。没印出来的老师或教室不会瞎填。
-          </p>
-          <p className="muted">
-            周课表：第一行列周一到周日，格子里写课程 / 周次 / 教室 / 老师。拍照请尽量端正、无反光。
-          </p>
-          <input
-            className="input"
-            placeholder="可选：给 AI 的提示，例如「这是大二上学期课表，第1-2节是 08:00-09:40」"
-            value={userHint}
-            onChange={(e) => setUserHint(e.target.value)}
-            aria-label="识别提示"
-          />
-          <div className="row wrap" style={{ marginTop: 12 }}>
-            <label className="btn primary file-btn">
-              {importing ? '正在识别…' : '选择表格或图片'}
-              <input
-                type="file"
-                hidden
-                accept={TIMETABLE_ACCEPT}
-                disabled={importing}
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) void onImport(file)
-                  e.target.value = ''
-                }}
-              />
-            </label>
-            <button className="btn ghost" onClick={() => downloadSample('grid')}>
-              下载课表示例 CSV
-            </button>
-            <button className="btn ghost" onClick={() => downloadSample('exam')}>
-              下载考试表示例 CSV
-            </button>
-            <a className="btn ghost" href={`${import.meta.env.BASE_URL}samples/course-grid.png`} download>
-              下载课表示例图片
-            </a>
-            {store.data.courses.length > 0 && (
-              <button className="btn ghost" onClick={() => store.clearCourses()}>
-                清空课表
-              </button>
-            )}
-          </div>
-          {previewUrl && (
-            <img className="ocr-preview" src={previewUrl} alt="待识别的课表图片" />
-          )}
-          {review && (
-            <div className="review-box">
-              <h3>核对识别结果</h3>
-              <p className="muted">改错格子后再写入。时长由开始、结束时间自动计算。</p>
+          {tab === 'week' && (previewUrl || review) ? (
+            <div className="card">
+              <h3>核对课表识别</h3>
+              <p className="muted">
+                拍教务处周课表或导入表格。手机原图会先压缩。请核对星期和钟点——格子里印了 8:30 就不要改成 8:00。
+              </p>
+              {previewUrl ? <img className="ocr-preview" src={previewUrl} alt="待识别的课表图片" /> : null}
+              {review ? (
+              <>
               <div className="review-table-wrap">
                 <table className="review-table">
                   <thead>
@@ -659,13 +640,73 @@ export default function Schedule({
                   放弃
                 </button>
               </div>
+              </>
+              ) : null}
             </div>
-          )}
-        </div>
+          ) : null}
+        </>
       )}
 
       {tab === 'exams' && (
         <>
+          <div className="card">
+            <h3>考试时间表</h3>
+            <p className="muted">
+              教务处的考试安排也可以拍照或导入表格。识别后按日期、开考时间排成一张表。
+            </p>
+            <div className="row wrap">
+              <label className="btn primary file-btn">
+                {importing ? '正在识别考试表…' : '导入考试表'}
+                <input
+                  type="file"
+                  hidden
+                  accept={TIMETABLE_ACCEPT}
+                  disabled={importing}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) void onImport(file, 'exams')
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+              <button className="btn ghost" onClick={() => downloadSample('exam')}>
+                下载考试表示例 CSV
+              </button>
+            </div>
+            {previewUrl && tab === 'exams' ? (
+              <img className="ocr-preview" src={previewUrl} alt="待识别的考试表" />
+            ) : null}
+            {review && review.exams.length > 0 ? (
+              <div className="review-box">
+                <p className="muted">核对接日期和开考时间后再写入。</p>
+                <ul className="mini-list">
+                  {review.exams.map((exam) => (
+                    <li key={exam.id}>
+                      {EXAM_KIND_LABEL[exam.kind]} {exam.name} {exam.date} {exam.startTime}
+                      {exam.endTime ? `-${exam.endTime}` : ''} {exam.location}
+                    </li>
+                  ))}
+                </ul>
+                <div className="row wrap">
+                  <button className="btn primary" onClick={() => applyResult(review, '考试表识别')}>
+                    写入考试时间表
+                  </button>
+                  <button
+                    className="btn ghost"
+                    onClick={() => {
+                      setReview(null)
+                      if (previewUrl) {
+                        URL.revokeObjectURL(previewUrl)
+                        setPreviewUrl('')
+                      }
+                    }}
+                  >
+                    放弃
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
           <div className="card">
             <h3>登记一场考试</h3>
             <div className="row wrap">
@@ -695,6 +736,51 @@ export default function Schedule({
                 登记考试
               </button>
             </div>
+          </div>
+          <div className="card review-table-wrap">
+            <table className="review-table exam-table">
+              <thead>
+                <tr>
+                  <th>日期</th>
+                  <th>星期</th>
+                  <th>时间</th>
+                  <th>科目</th>
+                  <th>类型</th>
+                  <th>地点</th>
+                  <th>座位</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {store.data.exams.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="muted">
+                      还没有考试。导入教务处考试表，或在上面手动登记。
+                    </td>
+                  </tr>
+                ) : (
+                  store.data.exams.map((exam) => (
+                    <tr key={exam.id}>
+                      <td>{exam.date}</td>
+                      <td>{WEEKDAY_LABELS[jsWeekday(new Date(`${exam.date}T12:00:00`)) - 1]}</td>
+                      <td>
+                        {exam.startTime}
+                        {exam.endTime ? `-${exam.endTime}` : ''}
+                      </td>
+                      <td>{exam.name}</td>
+                      <td>{EXAM_KIND_LABEL[exam.kind]}</td>
+                      <td>{exam.location || '—'}</td>
+                      <td>{exam.seat || '—'}</td>
+                      <td>
+                        <button className="icon-btn" onClick={() => store.removeExam(exam.id)} aria-label="删除考试">
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
           <ul className="exam-list">
             {examsSoon.length === 0 && store.data.exams.length === 0 && (

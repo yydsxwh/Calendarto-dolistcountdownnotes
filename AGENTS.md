@@ -55,3 +55,6 @@ Standard scripts are defined in `package.json`:
   Andyyyds tree at `/var/www/yyds-course-platform`. After those source
   changes, `npm run build` then `pm2 restart yyds-course`. Keep a `.next`
   backup before rebuilding.
+- Do not block local setup on GitHub write access to `yydsxwh/Andyyyds`.
+  That repo access was skipped; this product repo plus `npm run dev` is
+  enough. Live listing/app were already published over SSH.

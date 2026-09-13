@@ -727,74 +727,331 @@ select.input {
 
 .tt-wrap {
   overflow-x: auto;
+  padding: 12px;
 }
 
-.tt-grid {
-  display: grid;
-  min-width: 820px;
-  gap: 6px;
-}
-
-.tt-contents {
-  display: contents;
-}
-
-.tt-h,
-.tt-time,
-.tt-cell {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 8px;
-  background: #fff7fb;
-}
-
-.tt-h {
-  text-align: center;
-  font-weight: 700;
-  font-size: 13px;
-}
-
-.tt-h.is-today,
-.tt-cell.is-today {
-  box-shadow: inset 0 0 0 2px var(--brand-soft);
-}
-
-.tt-time {
+.week-toolbar-title {
+  min-width: 180px;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  font-size: 12px;
 }
 
-.tt-time em {
+.week-term {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
   color: var(--muted);
-  font-style: normal;
 }
 
-.tt-cell {
-  min-height: 72px;
+.week-detail h3 {
+  margin: 4px 0;
+}
+
+.week-tt {
+  min-width: 720px;
+}
+
+.week-tt-head,
+.week-tt-body {
+  display: grid;
+  grid-template-columns: 48px repeat(7, minmax(0, 1fr));
+}
+
+.week-tt-head {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: #fff7fb;
+}
+
+.week-tt-gutter,
+.week-tt-h {
+  padding: 8px 4px;
+  text-align: center;
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.week-tt-h {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
 }
 
-.tt-course {
-  color: white;
-  border-radius: 10px;
-  padding: 6px 8px;
+.week-tt-h strong {
+  font-size: 13px;
+}
+
+.week-tt-h span {
+  color: var(--muted);
+}
+
+.week-tt-h.is-today {
+  color: var(--brand);
+  box-shadow: inset 0 -3px 0 var(--brand);
+}
+
+.week-tt-h.is-weekend,
+.week-tt-day.is-weekend {
+  background: rgba(251, 113, 133, 0.04);
+}
+
+.week-tt-day.is-today {
+  background: rgba(37, 99, 235, 0.05);
+}
+
+.week-tt-body {
   position: relative;
-  font-size: 12px;
 }
 
-.tt-course span {
-  display: block;
-  opacity: 0.9;
+.week-tt-gutter-col,
+.week-tt-day {
+  position: relative;
+  border-left: 1px solid var(--line);
 }
 
-.tt-course .icon-btn {
+.week-tt-gutter-col {
+  border-left: 0;
+}
+
+.week-tt-hour {
   position: absolute;
-  top: 2px;
+  left: 0;
   right: 2px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--muted);
+  text-align: right;
+}
+
+.week-tt-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed rgba(225, 29, 72, 0.12);
+}
+
+.week-tt-course,
+.week-tt-exam {
+  position: absolute;
+  z-index: 2;
+  border: 0;
+  border-radius: 8px;
+  padding: 4px 5px;
+  color: white;
+  text-align: left;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1.25;
+  box-shadow: 0 6px 14px rgba(59, 35, 64, 0.12);
+}
+
+.week-tt-course strong,
+.week-tt-exam strong,
+.week-tt-course span,
+.week-tt-exam span {
+  display: block;
+  overflow: hidden;
+}
+
+.week-tt-course strong,
+.week-tt-exam strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.week-tt-course span,
+.week-tt-exam span {
+  opacity: 0.92;
+}
+
+.week-tt-course.is-selected {
+  outline: 2px solid #fff;
+  box-shadow: 0 0 0 3px var(--brand);
+}
+
+.week-tt-course.is-offweek {
+  opacity: 0.45;
+}
+
+.week-tt-hide {
+  display: block;
+  margin: 2px auto 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+  padding: 0;
+}
+
+.week-tt-hour {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.tt-drawer-root {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.tt-drawer-mask {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(30, 20, 30, 0.35);
+}
+
+.tt-drawer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(420px, 100%);
+  background: #fff;
+  box-shadow: -16px 0 40px rgba(59, 35, 64, 0.16);
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
+.tt-drawer-head {
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tt-drawer-head strong {
+  display: block;
+}
+
+.tt-drawer-list,
+.tt-drawer-pane {
+  padding: 8px 0 24px;
+}
+
+.tt-drawer-pane {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tt-drawer-label {
+  margin: 16px 16px 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tt-drawer-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+}
+
+.tt-drawer-row em {
+  color: var(--muted);
+  font-style: normal;
+  font-size: 13px;
+}
+
+.tt-term-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tt-term-list li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tt-term-list button:first-child {
+  flex: 1;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: #fff7fb;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.tt-term-list li.is-on button:first-child {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand-soft);
+}
+
+.tt-period-idx {
+  min-width: 56px;
+  font-size: 13px;
+}
+
+.tt-chip-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tt-chip-grid label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  padding: 6px;
+  border-radius: 10px;
+  background: #fff7fb;
+}
+
+.tt-chip-grid label.is-off {
+  opacity: 0.45;
+}
+
+.week-tt-exam {
+  background: repeating-linear-gradient(
+    135deg,
+    #e11d48,
+    #e11d48 8px,
+    #fb7185 8px,
+    #fb7185 16px
+  );
+}
+
+.week-tt-now {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  border-top: 2px solid var(--hot);
+  pointer-events: none;
+}
+
+.week-tt-now i {
+  position: absolute;
+  left: -5px;
+  top: -5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--hot);
 }
 
 .exam-list {
@@ -906,5 +1163,21 @@ select.input {
 
   .brand p {
     font-size: 10px;
+  }
+
+  .week-tt {
+    min-width: 0;
+  }
+
+  .week-tt-head,
+  .week-tt-body {
+    grid-template-columns: 36px repeat(7, minmax(0, 1fr));
+  }
+
+  .week-tt-course,
+  .week-tt-exam {
+    font-size: 10px;
+    padding: 3px 3px;
+    border-radius: 6px;
   }
 }

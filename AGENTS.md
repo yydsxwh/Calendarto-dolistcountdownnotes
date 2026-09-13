@@ -54,11 +54,16 @@ Standard scripts are defined in `package.json`:
   and optionally again at 60 minutes.
 - Production subpath build: `npx vite build --base=/products/days/` then
   `scripts/deploy-days.sh`.
-- Live URLs: `https://www.yydsxwh.com/products` (card) and
-  `https://www.yydsxwh.com/products/days/` (app). Static files live on the
-  Hong Kong box at `/var/www/yyds-course-platform/public/products/days/`.
-  nginx `location ^~ /products/days/` serves them; the Next app still owns
-  `/products`.
+- Live URLs: `https://www.yydsxwh.com/products` (软件产品 listing with
+  网页版 + Android 下载) and `https://www.yydsxwh.com/products/days/`
+  (app). Android package: `/products/days/kemiao-days.apk`. Static files
+  live on the Hong Kong box at
+  `/var/www/yyds-course-platform/public/products/days/`. nginx
+  `location ^~ /products/days/` serves them; the Next app still owns
+  `/products`. Listing card lives in Andyyyds
+  `packages/shared/src/software-products.ts` (`kemiao-days` + `actions`).
+  `scripts/deploy-days.sh` also uploads `kemiao-days.apk` when a local
+  debug APK exists.
 - SSH: `admin@47.242.157.181` with key file `~/.ssh/yyds_aliyun` (Aliyun
   console key name may show as `cursor`; key comment is `yyds-deploy`).
   Never write the private key into the repo or paste it into chat. If a key

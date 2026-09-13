@@ -59,8 +59,9 @@ Standard scripts are defined in `package.json`:
   patched into `.next/server/app/api/days/timetable-ocr/route.js` plus
   `packages/mathcode/lib/timetable-ocr.ts`; do not full-rebuild Next on
   this 3.4GB box while PM2 is up. Hidden dawn rows expand from a ▾ chip in the
-  时间 header — do not put 隐藏 on weekday columns. Course import lives
-  on 周课表; exam import lives on 考试时间表 (table by date). Import
+  时间 header — do not put 隐藏 on weekday columns.   There is no standalone 「导入」 tab. Course import lives
+  on 周课表 (拍教务处课表 / xlsx / csv); exam import lives
+  on 考试时间表 and writes a date-sorted table. Import
   infers class periods from printed clocks (e.g. 08:30) and hides hours
   outside the first/last class. Terms live in
   `AppData.terms` (学年 / 第1·2学期 / 寒暑假小学期 / 社会实践 /

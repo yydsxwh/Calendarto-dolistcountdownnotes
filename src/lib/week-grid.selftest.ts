@@ -101,7 +101,7 @@ const dawnRuns = hiddenHourRuns(hiddenDawn)
 if (dawnRuns.length !== 1 || dawnRuns[0].start !== 0 || dawnRuns[0].end !== 5) {
   throw new Error(`dawn run failed ${JSON.stringify(dawnRuns)}`)
 }
-if (hiddenHourRunLabel(dawnRuns[0]) !== '00:00–05:59' || hoursInRun(dawnRuns[0]).length !== 6) {
+if (hiddenHourRunLabel(dawnRuns[0]) !== '凌晨' || hoursInRun(dawnRuns[0]).length !== 6) {
   throw new Error('dawn run label failed')
 }
 if (hiddenHourRunTop(dawnRuns[0], hiddenDawn, 56) !== 0) {

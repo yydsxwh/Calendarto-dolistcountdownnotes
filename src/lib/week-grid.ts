@@ -173,9 +173,9 @@ export function hoursInRun(run: HiddenHourRun): number[] {
 }
 
 export function hiddenHourRunLabel(run: HiddenHourRun): string {
-  const from = `${String(run.start).padStart(2, '0')}:00`
-  const to = `${String(run.end).padStart(2, '0')}:59`
-  return run.start === run.end ? from : `${from}–${to}`
+  if (run.start === 0 && run.end >= 4 && run.end <= 6) return '凌晨'
+  if (run.start === run.end) return `${String(run.start).padStart(2, '0')}时`
+  return `${String(run.start).padStart(2, '0')}–${String(run.end).padStart(2, '0')}时`
 }
 
 /** Y position of an expand chip: top of the gap, or just after the last visible hour. */

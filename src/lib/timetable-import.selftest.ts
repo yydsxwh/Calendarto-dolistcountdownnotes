@@ -130,6 +130,26 @@ if (ocr.exams[0]?.kind !== 'midterm' || ocr.exams[0].startTime !== '14:00') {
   throw new Error(`ocr hydrate exam failed ${JSON.stringify(ocr.exams[0])}`)
 }
 
+const ocrPeriod = hydrateTimetableOcr(
+  {
+    courses: [
+      { name: '线性代数', weekday: '周一', startTime: '第1-2节', location: 'B201' },
+      { name: '大学物理', weekday: '三', startTime: '5-6节', teacher: '李老师' },
+    ],
+    exams: [],
+    warnings: [],
+  },
+  defaults,
+)
+const linear = ocrPeriod.courses.find((c) => c.name === '线性代数')
+const physics = ocrPeriod.courses.find((c) => c.name === '大学物理')
+if (!linear || linear.weekday !== 1 || linear.startTime !== '08:00' || linear.endTime !== '09:40') {
+  throw new Error(`period-in-startTime hydrate failed ${JSON.stringify(linear)}`)
+}
+if (!physics || physics.weekday !== 3 || physics.startTime !== '14:00' || physics.endTime !== '15:40') {
+  throw new Error(`weekday 三 / 5-6节 hydrate failed ${JSON.stringify(physics)}`)
+}
+
 const nativeSlots = upcomingReminderSlots(
   [
     {

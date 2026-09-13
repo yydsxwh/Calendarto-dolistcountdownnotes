@@ -1,6 +1,6 @@
 export type TimetableFileKind = 'image' | 'pdf' | 'sheet' | 'document' | 'unknown'
 
-const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp'])
+const IMAGE_EXT = new Set(['png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'heic', 'heif'])
 const PDF_EXT = new Set(['pdf'])
 const SHEET_EXT = new Set(['xlsx', 'xls', 'xlsm', 'xlsb', 'xltx', 'ods', 'csv', 'tsv'])
 const DOC_EXT = new Set(['docx', 'doc', 'wps', 'odt', 'pptx', 'ppt', 'txt', 'md', 'html', 'htm'])
@@ -29,5 +29,5 @@ export const TIMETABLE_ACCEPT = [
   'image/webp',
   'image/gif',
   'application/pdf',
-  '.xlsx,.xls,.xlsm,.xlsb,.xltx,.ods,.csv,.tsv,.docx,.doc,.txt,.png,.jpg,.jpeg,.webp,.gif,.pdf',
+  '.xlsx,.xls,.xlsm,.xlsb,.xltx,.ods,.csv,.tsv,.docx,.doc,.txt,.png,.jpg,.jpeg,.webp,.gif,.heic,.pdf',
 ].join(',')

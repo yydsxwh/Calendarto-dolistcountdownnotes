@@ -144,6 +144,10 @@ export function parseWeekday(raw: string): number | null {
   const lower = text.toLowerCase()
   if (named[text] != null) return named[text]
   if (named[lower] != null) return named[lower]
+  if (/^[一二三四五六日天]$/.test(text)) {
+    const only: Record<string, number> = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 7, 天: 7 }
+    return only[text]
+  }
   const week = text.match(/(?:周|星期|礼拜)\s*([一二三四五六七日天1-7])/)
   if (week) {
     const map: Record<string, number> = {

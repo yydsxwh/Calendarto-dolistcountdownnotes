@@ -6,6 +6,7 @@ import {
   type ExamKind,
 } from '../types'
 import { classifyTimetableFile } from './file-kinds'
+import { explainOcrHttpError, prepareTimetableImage } from './image-prep'
 import {
   durationMinutes,
   normalizeClockInput,
@@ -89,13 +90,18 @@ function parseDate(raw: string): string | null {
 }
 
 function resolveSlot(item: Record<string, unknown>): { start: string; end: string } | null {
+  const startRaw = text(item.startTime)
+  const endRaw = text(item.endTime)
+  const periodRaw = text(item.period) || text(item.time) || text(item.slot)
   const ranged =
-    parseTimeRange(`${text(item.startTime)}-${text(item.endTime)}`) ||
-    parseTimeRange(text(item.time) || text(item.period) || '') ||
-    parsePeriodHint(text(item.period) || text(item.time) || '')
+    parseTimeRange(`${startRaw}-${endRaw}`) ||
+    parseTimeRange(periodRaw) ||
+    parsePeriodHint(periodRaw) ||
+    parsePeriodHint(startRaw) ||
+    parsePeriodHint(`${startRaw}${endRaw ? `-${endRaw}` : ''}`)
   if (ranged) return ranged
-  const start = normalizeClockInput(text(item.startTime))
-  const end = normalizeClockInput(text(item.endTime))
+  const start = normalizeClockInput(startRaw)
+  const end = normalizeClockInput(endRaw)
   if (start && end) return { start, end }
   return null
 }
@@ -178,8 +184,10 @@ export async function recognizeTimetableFile(
   defaults: { classRemindMinutes: number; examRemindMinutes: number },
   userHint = '',
 ): Promise<TimetableImportResult> {
+  const upload =
+    classifyTimetableFile(file.name, file.type) === 'image' ? await prepareTimetableImage(file) : file
   const form = new FormData()
-  form.append('file', file, file.name)
+  form.append('file', upload, upload.name)
   if (userHint.trim()) form.append('userHint', userHint.trim())
 
   const res = await fetch(ocrEndpoint(), { method: 'POST', body: form })
@@ -187,10 +195,12 @@ export async function recognizeTimetableFile(
   try {
     payload = (await res.json()) as TimetableOcrPayload
   } catch {
-    throw new Error(res.ok ? '识别接口没有返回 JSON' : `识别失败（${res.status}）`)
+    throw new Error(
+      res.ok ? '识别接口没有返回 JSON' : explainOcrHttpError(res.status, `识别失败（${res.status}）`),
+    )
   }
   if (!res.ok || payload.error) {
-    throw new Error(payload.error || `识别失败（${res.status}）`)
+    throw new Error(payload.error || explainOcrHttpError(res.status, `识别失败（${res.status}）`))
   }
   const result = hydrateTimetableOcr(payload, defaults)
   if (result.courses.length === 0 && result.exams.length === 0) {

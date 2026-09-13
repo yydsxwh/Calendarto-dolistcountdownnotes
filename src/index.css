@@ -888,6 +888,32 @@ select.input {
   padding: 0;
 }
 
+.week-tt-restore {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+
+.week-tt-expand {
+  border: 1px dashed rgba(225, 29, 72, 0.28);
+  background: #fff5f7;
+  color: #e11d48;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 4px 8px;
+}
+
+.week-tt-expand-hour {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  z-index: 3;
+  padding: 2px 4px;
+  font-size: 10px;
+}
+
 .week-tt-hour {
   display: flex;
   align-items: flex-start;

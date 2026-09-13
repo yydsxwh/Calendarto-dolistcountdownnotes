@@ -147,6 +147,45 @@ export function visibleHours(hiddenHours: number[] = []): number[] {
   return hours.length ? hours : [8]
 }
 
+export type HiddenHourRun = { start: number; end: number }
+
+/** Contiguous hidden hour blocks, used to draw “展开” arrows. */
+export function hiddenHourRuns(hiddenHours: number[] = []): HiddenHourRun[] {
+  const hide = new Set(hiddenHours.filter((h) => h >= 0 && h <= 23))
+  const runs: HiddenHourRun[] = []
+  let hour = 0
+  while (hour <= 23) {
+    if (!hide.has(hour)) {
+      hour += 1
+      continue
+    }
+    const start = hour
+    while (hour <= 23 && hide.has(hour)) hour += 1
+    runs.push({ start, end: hour - 1 })
+  }
+  return runs
+}
+
+export function hoursInRun(run: HiddenHourRun): number[] {
+  const hours: number[] = []
+  for (let hour = run.start; hour <= run.end; hour += 1) hours.push(hour)
+  return hours
+}
+
+export function hiddenHourRunLabel(run: HiddenHourRun): string {
+  const from = `${String(run.start).padStart(2, '0')}:00`
+  const to = `${String(run.end).padStart(2, '0')}:59`
+  return run.start === run.end ? from : `${from}–${to}`
+}
+
+/** Y position of an expand chip: top of the gap, or just after the last visible hour. */
+export function hiddenHourRunTop(run: HiddenHourRun, hiddenHours: number[], hourPx: number): number {
+  const hours = visibleHours(hiddenHours)
+  const before = hours.filter((hour) => hour < run.start)
+  if (before.length === 0) return 0
+  return before.length * hourPx
+}
+
 export function hourMarksFromHidden(hiddenHours: number[] = []): { hour: number; minutes: number; label: string }[] {
   return visibleHours(hiddenHours).map((hour) => ({
     hour,

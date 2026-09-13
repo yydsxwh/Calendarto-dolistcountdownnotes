@@ -49,9 +49,12 @@ Standard scripts are defined in `package.json`:
   通义千问 `qwen-vl-max`). Vite proxies `/api/days` to `https://www.yydsxwh.com`
   in `npm run dev`. Sample files live in `public/samples/`.
   Parser self-test: `npm run test:timetable` (import + week-grid layout).
-  The `#schedule` week view is an Excel-like grid: columns are
-  weekdays, rows are 00:00–23:59. Dawn hours 00–05 are hidden by
-  default and can be toggled in 课表设置. Terms live in
+  Photo import resizes to JPEG ≤1600px before `POST /api/days/timetable-ocr`
+  (phone originals often fail the first vision call). HEIC is rejected with
+  a “导出 JPG” hint. Hydrate also accepts `weekday: 周一` and
+  `startTime: 第1-2节`. Hidden hour/weekday blocks show ▾ / › expand
+  chips on the grid; weekday “隐藏” was removed from column headers so
+  hiding dawn rows does not hide 周几. Terms live in
   `AppData.terms` (学年 / 第1·2学期 / 寒暑假小学期 / 社会实践 /
   实习). Import writes into the current term. `npm run test:timetable`
   covers import + week-grid hide/layout.

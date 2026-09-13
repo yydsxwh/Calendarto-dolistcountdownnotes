@@ -456,7 +456,16 @@ export default function Schedule({
                 setStatus(`已选 ${WEEKDAY_LABELS[slot.weekday - 1]} ${slot.startTime}-${slot.endTime}，补课程名后点「加到课表」`)
               }}
               onHideHour={store.toggleHiddenHour}
-              onHideWeekday={store.toggleHiddenWeekday}
+              onShowHours={(hours) =>
+                store.updateTimetableView({
+                  hiddenHours: view.hiddenHours.filter((hour) => !hours.includes(hour)),
+                })
+              }
+              onShowWeekdays={(weekdays) =>
+                store.updateTimetableView({
+                  hiddenWeekdays: view.hiddenWeekdays.filter((day) => !weekdays.includes(day)),
+                })
+              }
             />
           </div>
           <ScheduleSettings
@@ -471,7 +480,7 @@ export default function Schedule({
         <div className="card">
           <h3>从表格或图片导入</h3>
           <p className="muted">
-            识别结果会写入当前学期（{currentTerm ? termLabel(currentTerm) : '未选择'}）。表格（xlsx / xls / csv /
+            识别结果会写入当前学期（{currentTerm ? termLabel(currentTerm) : '未选择'}）。手机原图会先压缩再识别。iPhone HEIC 请先导出 JPG。表格（xlsx / xls / csv /
             ods）在浏览器里直接解析。照片、截图、PDF 走主站 MathCode
             同一套视觉模型，抽出课程、教室、时间、老师和时长。没印出来的老师或教室不会瞎填。
           </p>

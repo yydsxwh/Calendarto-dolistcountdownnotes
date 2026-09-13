@@ -4,8 +4,12 @@ import {
   DEFAULT_DAY_END_MIN,
   DEFAULT_DAY_START_MIN,
   gridHeight,
+  hiddenHourRunLabel,
+  hiddenHourRuns,
+  hiddenHourRunTop,
   hourMarks,
   hourMarksFromHidden,
+  hoursInRun,
   layoutDayCourses,
   mondayOf,
   parseWeekNumbers,
@@ -92,6 +96,23 @@ if (top8 !== 2 * 56) {
 }
 if (gridHeight(hiddenDawn, 56) !== 18 * 56) {
   throw new Error('hidden dawn grid height failed')
+}
+const dawnRuns = hiddenHourRuns(hiddenDawn)
+if (dawnRuns.length !== 1 || dawnRuns[0].start !== 0 || dawnRuns[0].end !== 5) {
+  throw new Error(`dawn run failed ${JSON.stringify(dawnRuns)}`)
+}
+if (hiddenHourRunLabel(dawnRuns[0]) !== '00:00–05:59' || hoursInRun(dawnRuns[0]).length !== 6) {
+  throw new Error('dawn run label failed')
+}
+if (hiddenHourRunTop(dawnRuns[0], hiddenDawn, 56) !== 0) {
+  throw new Error('dawn expand chip should sit at the top')
+}
+const lunchRuns = hiddenHourRuns([12, 13, 22, 23])
+if (lunchRuns.length !== 2 || lunchRuns[0].start !== 12 || lunchRuns[1].end !== 23) {
+  throw new Error(`split hidden runs failed ${JSON.stringify(lunchRuns)}`)
+}
+if (hiddenHourRunTop(lunchRuns[0], [12, 13, 22, 23], 56) !== 12 * 56) {
+  throw new Error(`lunch expand top wrong ${hiddenHourRunTop(lunchRuns[0], [12, 13, 22, 23], 56)}`)
 }
 
 const overlapA = createCourse('A', { weekday: 1, startTime: '08:00', endTime: '09:40' })

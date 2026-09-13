@@ -185,6 +185,9 @@ function parseGrid(rows: string[][], remindMinutes: number, warnings: string[]):
 function parseCourseList(rows: string[][], remindMinutes: number, warnings: string[]): Course[] {
   if (rows.length < 2) return []
   const headers = rows[0].map(cell)
+  if (/考试|期中|期末|exam/i.test(headers.join(' ')) && findCol(headers, DATE_KEYS) >= 0) {
+    return []
+  }
   const nameCol = findCol(headers, COURSE_NAME_KEYS)
   const dayCol = findCol(headers, WEEKDAY_KEYS)
   const startCol = findCol(headers, START_KEYS)

@@ -34,6 +34,10 @@ const exams = await importTimetableFile(
   defaults,
 )
 if (exams.exams.length !== 2) throw new Error(`exams expected 2 got ${exams.exams.length}`)
+if (exams.courses.length !== 0) throw new Error(`exam sheet should not also parse as courses`)
+if (exams.warnings.some((w) => w.includes('缺少星期'))) {
+  throw new Error(`exam sheet should not warn as course list: ${exams.warnings.join('; ')}`)
+}
 const finalExam = exams.exams.find((e) => e.name.includes('高等数学'))
 if (!finalExam || finalExam.kind !== 'final' || finalExam.startTime !== '08:00') {
   throw new Error(`final exam parse failed ${JSON.stringify(finalExam)}`)

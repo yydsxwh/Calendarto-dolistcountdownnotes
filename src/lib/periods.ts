@@ -29,6 +29,15 @@ export function parseClock(raw: string): string | null {
   return padTime(h, m)
 }
 
+/** 手动填写用：接受 8:00 / 08：00 / 800，统一成 24 小时 HH:MM，避免上午/下午选择器写错考试时间。 */
+export function normalizeClockInput(raw: string): string | null {
+  const parsed = parseClock(raw)
+  if (parsed) return parsed
+  const compact = raw.trim().match(/^(\d{1,2})([0-5]\d)$/)
+  if (!compact) return null
+  return parseClock(`${compact[1]}:${compact[2]}`)
+}
+
 export function parseTimeRange(raw: string): { start: string; end: string } | null {
   const text = raw.replace(/[：.]/g, ':').replace(/[～~—–－]/g, '-')
   const match = text.match(/(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/)

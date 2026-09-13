@@ -39,5 +39,16 @@ export function useReminders(
     return Notification.requestPermission()
   }
 
-  return { banner, dismiss: () => setBanner(null), requestPermission }
+  const preview = (item: DueReminder) => {
+    setBanner(item)
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      try {
+        new Notification(item.title, { body: item.body, tag: item.key })
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  return { banner, dismiss: () => setBanner(null), requestPermission, preview }
 }

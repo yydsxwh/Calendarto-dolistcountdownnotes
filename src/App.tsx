@@ -226,7 +226,11 @@ export default function App() {
         ) : view === 'todos' ? (
           <Todos store={store} />
         ) : view === 'schedule' ? (
-          <Schedule store={store} requestPermission={reminders.requestPermission} />
+          <Schedule
+            store={store}
+            requestPermission={reminders.requestPermission}
+            previewReminder={reminders.preview}
+          />
         ) : view === 'days' ? (
           <Countdowns store={store} />
         ) : (

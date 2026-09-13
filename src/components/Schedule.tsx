@@ -1,24 +1,54 @@
 import { useMemo, useState } from 'react'
 import type { AppStore } from '../hooks/useAppStore'
+import type { DueReminder } from '../lib/reminders'
 import { daysUntil, toISODate, startOfToday } from '../lib/dates'
 import {
   WEEKDAY_LABELS,
   durationMinutes,
   formatDuration,
   jsWeekday,
+  normalizeClockInput,
 } from '../lib/periods'
 import { upcomingExams } from '../lib/reminders'
 import { importTimetableFile, sampleExamCsv, sampleGridCsv } from '../lib/timetable-import'
 import { EXAM_KIND_LABEL, type ExamKind } from '../types'
+
+function TimeInput({
+  value,
+  onChange,
+  label,
+}: {
+  value: string
+  onChange: (next: string) => void
+  label: string
+}) {
+  return (
+    <input
+      className="input slim"
+      type="text"
+      inputMode="numeric"
+      placeholder="08:00"
+      value={value}
+      aria-label={label}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={() => {
+        const parsed = normalizeClockInput(value)
+        if (parsed) onChange(parsed)
+      }}
+    />
+  )
+}
 
 type Tab = 'week' | 'import' | 'exams' | 'remind'
 
 export default function Schedule({
   store,
   requestPermission,
+  previewReminder,
 }: {
   store: AppStore
   requestPermission: () => Promise<NotificationPermission | 'denied' | 'granted'>
+  previewReminder: (item: DueReminder) => void
 }) {
   const [tab, setTab] = useState<Tab>('week')
   const [name, setName] = useState('')
@@ -50,29 +80,71 @@ export default function Schedule({
 
   const addManual = () => {
     if (!name.trim()) return
+    const start = normalizeClockInput(startTime)
+    const end = normalizeClockInput(endTime)
+    if (!start || !end) {
+      setStatus('请用 24 小时制填写时间，例如 08:00 和 09:40')
+      return
+    }
+    setStartTime(start)
+    setEndTime(end)
     store.addCourse(name, {
       weekday,
-      startTime,
-      endTime,
+      startTime: start,
+      endTime: end,
       location: location || undefined,
       remindMinutes: settings.classDefaultMinutes,
     })
     setName('')
-    setStatus(`已添加 ${name.trim()}（${formatDuration(startTime, endTime)}）`)
+    setStatus(`已添加 ${name.trim()}（${formatDuration(start, end)}）`)
   }
 
   const addExam = () => {
     if (!examName.trim() || !examDate) return
+    const start = normalizeClockInput(examStart)
+    const end = examEnd.trim() ? normalizeClockInput(examEnd) : undefined
+    if (!start || (examEnd.trim() && !end)) {
+      setStatus('考试时间请用 24 小时制，例如 14:00-16:00，避免写成上午/下午')
+      return
+    }
+    setExamStart(start)
+    if (end) setExamEnd(end)
     store.addExam(examName, {
       kind: examKind,
       date: examDate,
-      startTime: examStart,
-      endTime: examEnd || undefined,
+      startTime: start,
+      endTime: end ?? undefined,
       location: examLoc || undefined,
       remindMinutes: settings.examDefaultMinutes,
     })
     setExamName('')
-    setStatus(`已登记考试 ${examName.trim()} ${examDate} ${examStart}`)
+    setStatus(`已登记考试 ${examName.trim()} ${examDate} ${start}${end ? `-${end}` : ''}`)
+  }
+
+  const tryClassReminder = () => {
+    const course = store.data.courses[0]
+    previewReminder({
+      id: course?.id || 'preview-class',
+      key: `preview-class:${Date.now()}`,
+      title: `上课提醒 · ${course?.name || '高等数学'}`,
+      body: `${course?.startTime || '08:00'}-${course?.endTime || '09:40'} ${course?.location || '教学楼A101'} · 还有 ${settings.classDefaultMinutes} 分钟，现在出发以免迟到`,
+      kind: 'class',
+      fireAt: Date.now(),
+    })
+    setStatus('已弹出上课提醒条。浏览器通知需先点「允许浏览器通知」。')
+  }
+
+  const tryExamReminder = () => {
+    const exam = store.data.exams[0]
+    previewReminder({
+      id: exam?.id || 'preview-exam',
+      key: `preview-exam:${Date.now()}`,
+      title: `考试提醒 · ${exam?.name || '大学英语'}`,
+      body: `${exam?.date || '今天'} ${exam?.startTime || '14:00'}${exam?.endTime ? `-${exam.endTime}` : ''} ${exam?.location || ''} · 请核对开考时间以免记错错过`,
+      kind: 'exam',
+      fireAt: Date.now(),
+    })
+    setStatus('已弹出考试提醒条。建议同时打开「考试再提前 60 分钟提醒一次」。')
   }
 
   const onImport = async (file: File) => {
@@ -156,8 +228,8 @@ export default function Schedule({
                   </option>
                 ))}
               </select>
-              <input className="input slim" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-              <input className="input slim" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+              <TimeInput value={startTime} onChange={setStartTime} label="开始时间" />
+              <TimeInput value={endTime} onChange={setEndTime} label="结束时间" />
               <input
                 className="input slim"
                 placeholder="教室"
@@ -226,8 +298,8 @@ export default function Schedule({
         <div className="card">
           <h3>从表格导入</h3>
           <p className="muted">
-            支持 .xlsx / .xls / .xlsm / .xlsb / .xltx / .ods / .csv / .tsv。Numbers 可先导出 xlsx。PDF /
-            Parquet 请先另存为 xlsx 或 csv。
+            支持 .xlsx / .xls / .xlsm / .xlsb / .xltx / .ods / .csv / .tsv。Numbers 请先导出
+            xlsx。PDF / Parquet 请先另存为 xlsx 或 csv，才能准确读到每节课时间和时长。
           </p>
           <p className="muted">
             周课表：第一行列周一到周日，左侧写「第1-2节 08:00-09:40」，格子里写课程、周次、教室。列表：课程、星期、节次或开始/结束时间。
@@ -281,8 +353,8 @@ export default function Schedule({
                 ))}
               </select>
               <input className="input slim" type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} />
-              <input className="input slim" type="time" value={examStart} onChange={(e) => setExamStart(e.target.value)} />
-              <input className="input slim" type="time" value={examEnd} onChange={(e) => setExamEnd(e.target.value)} />
+              <TimeInput value={examStart} onChange={setExamStart} label="开考时间" />
+              <TimeInput value={examEnd} onChange={setExamEnd} label="结束时间" />
               <input
                 className="input slim"
                 placeholder="考场"
@@ -373,20 +445,28 @@ export default function Schedule({
             />
             <span>考试再提前 60 分钟提醒一次</span>
           </label>
-          <button
-            className="btn primary"
-            onClick={() => {
-              void requestPermission().then((perm) => {
-                setStatus(
-                  perm === 'granted'
-                    ? '已允许浏览器通知。把这个页面开着或固定标签，到点会弹出。'
-                    : '未获得通知权限。仍可在本页顶部看到提醒条。',
-                )
-              })
-            }}
-          >
-            允许浏览器通知
-          </button>
+          <div className="row wrap">
+            <button
+              className="btn primary"
+              onClick={() => {
+                void requestPermission().then((perm) => {
+                  setStatus(
+                    perm === 'granted'
+                      ? '已允许浏览器通知。把这个页面开着或固定标签，到点会弹出。'
+                      : '未获得通知权限。仍可在本页顶部看到提醒条。',
+                  )
+                })
+              }}
+            >
+              允许浏览器通知
+            </button>
+            <button className="btn ghost" onClick={tryClassReminder}>
+              试响上课提醒
+            </button>
+            <button className="btn ghost" onClick={tryExamReminder}>
+              试响考试提醒
+            </button>
+          </div>
           <p className="muted">默认：上课提前 {settings.classDefaultMinutes} 分钟，考试提前 {settings.examDefaultMinutes} 分钟。</p>
         </div>
       )}

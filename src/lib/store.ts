@@ -13,37 +13,96 @@ import {
   type Note,
   type Priority,
   type ReminderSettings,
+  type Term,
+  type TimetableViewSettings,
   type Todo,
 } from '../types'
+import {
+  currentAcademicYearStart,
+  defaultTimetableView,
+  defaultWeekCount,
+  guessTermKind,
+} from './terms'
 
-export const emptyData = (): AppData => ({
-  todos: [],
-  countdowns: [],
-  notes: [],
-  courses: [],
-  exams: [],
-  reminderSettings: defaultReminderSettings(),
-  termStart: undefined,
-})
+export function createTerm(extras: Partial<Term> = {}): Term {
+  const kind = extras.kind ?? guessTermKind()
+  return {
+    id: extras.id ?? uid(),
+    yearStart: extras.yearStart ?? currentAcademicYearStart(),
+    kind,
+    title: extras.title,
+    startDate: extras.startDate ?? '',
+    weekCount: extras.weekCount ?? defaultWeekCount(kind),
+  }
+}
+
+function hydrateTimetableView(raw?: Partial<TimetableViewSettings>): TimetableViewSettings {
+  const base = defaultTimetableView()
+  if (!raw || typeof raw !== 'object') return base
+  const hiddenHours = Array.isArray(raw.hiddenHours)
+    ? raw.hiddenHours.filter((h) => Number.isInteger(h) && h >= 0 && h <= 23)
+    : base.hiddenHours
+  const hiddenWeekdays = Array.isArray(raw.hiddenWeekdays)
+    ? raw.hiddenWeekdays.filter((d) => d >= 1 && d <= 7)
+    : base.hiddenWeekdays
+  return {
+    weekStartsOn: raw.weekStartsOn === 7 ? 7 : 1,
+    showOffWeekCourses: Boolean(raw.showOffWeekCourses),
+    hiddenHours: hiddenHours.length === 24 ? base.hiddenHours : hiddenHours,
+    hiddenWeekdays: hiddenWeekdays.length === 7 ? [] : hiddenWeekdays,
+    classPeriods:
+      Array.isArray(raw.classPeriods) && raw.classPeriods.length > 0
+        ? raw.classPeriods.map((p) => ({ start: p.start, end: p.end }))
+        : base.classPeriods,
+  }
+}
+
+function hydrateAppData(parsed: Partial<AppData>): AppData {
+  const timetableView = hydrateTimetableView(parsed.timetableView)
+  let terms = Array.isArray(parsed.terms)
+    ? parsed.terms.filter((t): t is Term => Boolean(t && typeof t.id === 'string'))
+    : []
+  if (terms.length === 0) {
+    terms = [
+      createTerm({
+        startDate: typeof parsed.termStart === 'string' ? parsed.termStart : '',
+      }),
+    ]
+  }
+  const currentTermId =
+    (typeof parsed.currentTermId === 'string' && terms.some((t) => t.id === parsed.currentTermId)
+      ? parsed.currentTermId
+      : terms[0].id)
+  const current = terms.find((t) => t.id === currentTermId) ?? terms[0]
+  const courses = (Array.isArray(parsed.courses) ? parsed.courses : []).map((course) => ({
+    ...course,
+    termId: course.termId || current.id,
+  }))
+  return {
+    todos: Array.isArray(parsed.todos) ? parsed.todos : [],
+    countdowns: Array.isArray(parsed.countdowns) ? parsed.countdowns : [],
+    notes: Array.isArray(parsed.notes) ? parsed.notes : [],
+    courses,
+    exams: Array.isArray(parsed.exams) ? parsed.exams : [],
+    reminderSettings: {
+      ...defaultReminderSettings(),
+      ...(parsed.reminderSettings as ReminderSettings | undefined),
+    },
+    terms,
+    currentTermId: current.id,
+    timetableView,
+    termStart: current.startDate || undefined,
+  }
+}
+
+export const emptyData = (): AppData => hydrateAppData({})
 
 export function loadData(): AppData {
   if (typeof window === 'undefined') return emptyData()
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return emptyData()
-    const parsed = JSON.parse(raw) as Partial<AppData>
-    return {
-      todos: Array.isArray(parsed.todos) ? parsed.todos : [],
-      countdowns: Array.isArray(parsed.countdowns) ? parsed.countdowns : [],
-      notes: Array.isArray(parsed.notes) ? parsed.notes : [],
-      courses: Array.isArray(parsed.courses) ? parsed.courses : [],
-      exams: Array.isArray(parsed.exams) ? parsed.exams : [],
-      reminderSettings: {
-        ...defaultReminderSettings(),
-        ...(parsed.reminderSettings as ReminderSettings | undefined),
-      },
-      termStart: typeof parsed.termStart === 'string' && parsed.termStart ? parsed.termStart : undefined,
-    }
+    return hydrateAppData(JSON.parse(raw) as Partial<AppData>)
   } catch {
     return emptyData()
   }
@@ -112,18 +171,7 @@ export function parseImport(text: string): AppData {
   if (!parsed || typeof parsed !== 'object') {
     throw new Error('无效的备份文件')
   }
-  return {
-    todos: Array.isArray(parsed.todos) ? parsed.todos : [],
-    countdowns: Array.isArray(parsed.countdowns) ? parsed.countdowns : [],
-    notes: Array.isArray(parsed.notes) ? parsed.notes : [],
-    courses: Array.isArray(parsed.courses) ? parsed.courses : [],
-    exams: Array.isArray(parsed.exams) ? parsed.exams : [],
-    reminderSettings: {
-      ...defaultReminderSettings(),
-      ...(parsed.reminderSettings as ReminderSettings | undefined),
-    },
-    termStart: typeof parsed.termStart === 'string' && parsed.termStart ? parsed.termStart : undefined,
-  }
+  return hydrateAppData(parsed)
 }
 
 export function createCourse(
@@ -142,6 +190,7 @@ export function createCourse(
     color: extras.color ?? COURSE_COLORS[0],
     remindMinutes: extras.remindMinutes ?? 15,
     createdAt: Date.now(),
+    termId: extras.termId,
   }
 }
 

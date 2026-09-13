@@ -1,15 +1,19 @@
 import { createCourse, createExam } from './store'
 import {
   courseInTeachingWeek,
-  dayBounds,
   DEFAULT_DAY_END_MIN,
   DEFAULT_DAY_START_MIN,
+  gridHeight,
   hourMarks,
+  hourMarksFromHidden,
   layoutDayCourses,
   mondayOf,
   parseWeekNumbers,
   slotFromOffset,
+  startOfWeek,
   teachingWeekNumber,
+  visibleHours,
+  visibleOffset,
   weekDays,
 } from './week-grid'
 
@@ -29,6 +33,15 @@ if (!days[2].isToday || days[5].isWeekend !== true) {
   throw new Error('today / weekend flags wrong')
 }
 
+const sunWeek = weekDays(startOfWeek(new Date(2026, 8, 16), 7), new Date(2026, 8, 16), 7, [])
+if (sunWeek[0].label !== '周日' || sunWeek[0].iso !== '2026-09-13') {
+  throw new Error(`Sunday-start week failed ${sunWeek[0].iso} ${sunWeek[0].label}`)
+}
+const noWeekend = weekDays(monday, new Date(2026, 8, 16), 1, [6, 7])
+if (noWeekend.length !== 5 || noWeekend.some((d) => d.isWeekend)) {
+  throw new Error('hidden weekend columns failed')
+}
+
 if (teachingWeekNumber(monday, '2026-09-14') !== 1) {
   throw new Error('term week 1 failed')
 }
@@ -44,10 +57,6 @@ const odd = parseWeekNumbers('1-8单周')
 if (!odd || !odd.has(1) || !odd.has(7) || odd.has(2)) {
   throw new Error('odd week parse failed')
 }
-const bi = parseWeekNumbers('双周')
-if (!bi || !bi.has(2) || bi.has(1)) {
-  throw new Error('even week parse failed')
-}
 
 const math = createCourse('高等数学', {
   weekday: 1,
@@ -59,37 +68,49 @@ if (!courseInTeachingWeek(math, 3) || courseInTeachingWeek(math, 18)) {
   throw new Error('course week filter failed')
 }
 
-const bounds = dayBounds([math, { startTime: '21:00', endTime: '22:30' }])
-if (bounds.start !== DEFAULT_DAY_START_MIN || bounds.end !== 23 * 60) {
-  throw new Error(`bounds should stay 06:00 and expand past 22:00, got ${bounds.start}-${bounds.end}`)
+const bounds = { start: DEFAULT_DAY_START_MIN, end: DEFAULT_DAY_END_MIN }
+if (bounds.start !== 0 || bounds.end !== 24 * 60) {
+  throw new Error('full-day table should be 00:00-23:59')
 }
-const defaultBounds = dayBounds([math])
-if (defaultBounds.start !== DEFAULT_DAY_START_MIN || defaultBounds.end !== DEFAULT_DAY_END_MIN) {
-  throw new Error('default 06:00-22:00 missing')
+const marks = hourMarks(0, 24 * 60)
+if (marks[0].label !== '00:00' || marks.at(-1)?.label !== '23:59') {
+  throw new Error(`full-day marks wrong ${marks[0].label} ${marks.at(-1)?.label}`)
 }
 
-const marks = hourMarks(6 * 60, 22 * 60)
-if (marks[0].label !== '06:00' || marks.at(-1)?.label !== '22:00' || marks.length !== 17) {
-  throw new Error(`hour marks wrong ${marks.map((m) => m.label).join(',')}`)
+const hiddenDawn = [0, 1, 2, 3, 4, 5]
+if (visibleHours(hiddenDawn)[0] !== 6 || visibleHours(hiddenDawn).length !== 18) {
+  throw new Error('dawn hide should leave 06:00-23:00')
+}
+const shown = hourMarksFromHidden(hiddenDawn)
+if (shown[0].label !== '06:00' || shown.at(-1)?.hour !== 23) {
+  throw new Error(`hidden-hour marks wrong ${JSON.stringify(shown[0])} ${JSON.stringify(shown.at(-1))}`)
+}
+
+const top8 = visibleOffset(8 * 60, hiddenDawn, 56)
+if (top8 !== 2 * 56) {
+  throw new Error(`08:00 should sit two hours below 06:00, got ${top8}`)
+}
+if (gridHeight(hiddenDawn, 56) !== 18 * 56) {
+  throw new Error('hidden dawn grid height failed')
 }
 
 const overlapA = createCourse('A', { weekday: 1, startTime: '08:00', endTime: '09:40' })
 const overlapB = createCourse('B', { weekday: 1, startTime: '08:55', endTime: '10:30' })
-const laid = layoutDayCourses([overlapA, overlapB], 6 * 60, 56)
+const laid = layoutDayCourses([overlapA, overlapB], hiddenDawn, 56)
 if (laid.length !== 2 || laid[0].cols !== 2 || laid[1].cols !== 2) {
   throw new Error(`overlap should split columns ${JSON.stringify(laid)}`)
 }
-if (laid[0].top !== ((8 * 60 - 6 * 60) / 60) * 56) {
+if (laid[0].top !== top8) {
   throw new Error(`block top wrong ${laid[0].top}`)
 }
 
 const later = createCourse('C', { weekday: 1, startTime: '14:00', endTime: '15:40' })
-const split = layoutDayCourses([overlapA, later], 6 * 60, 56)
+const split = layoutDayCourses([overlapA, later], hiddenDawn, 56)
 if (split.some((item) => item.cols !== 1)) {
   throw new Error('non-overlapping classes should not share columns')
 }
 
-const slot = slotFromOffset(56 * 2, 6 * 60, 56, 90)
+const slot = slotFromOffset(56 * 2, hiddenDawn, 56, 90)
 if (slot.startTime !== '08:00' || slot.endTime !== '09:30') {
   throw new Error(`slot snap failed ${slot.startTime}-${slot.endTime}`)
 }

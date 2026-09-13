@@ -7,19 +7,24 @@ import {
   durationMinutes,
   formatDuration,
   normalizeClockInput,
+  setPeriodTable,
 } from '../lib/periods'
 import { TIMETABLE_ACCEPT } from '../lib/file-kinds'
 import { importTimetableAny } from '../lib/import-any'
 import { upcomingExams } from '../lib/reminders'
 import { sampleExamCsv, sampleGridCsv, type TimetableImportResult } from '../lib/timetable-import'
+import { termLabel } from '../lib/terms'
 import {
   courseInTeachingWeek,
-  mondayOf,
+  courseInTerm,
   shiftWeek,
+  startOfWeek,
   teachingWeekNumber,
   weekRangeLabel,
+  weekStartForTeachingWeek,
 } from '../lib/week-grid'
 import { EXAM_KIND_LABEL, type Course, type ExamKind } from '../types'
+import ScheduleSettings from './ScheduleSettings'
 import WeekTimetable from './WeekTimetable'
 
 function TimeInput({
@@ -71,10 +76,11 @@ export default function Schedule({
   const [review, setReview] = useState<TimetableImportResult | null>(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [userHint, setUserHint] = useState('')
-  const [weekMonday, setWeekMonday] = useState(() => mondayOf(new Date()))
+  const [weekMonday, setWeekMonday] = useState(() => startOfWeek(new Date(), 1))
   const [now, setNow] = useState(() => new Date())
   const [selectedId, setSelectedId] = useState<string>()
   const [showAdd, setShowAdd] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const [examName, setExamName] = useState('')
   const [examKind, setExamKind] = useState<ExamKind>('final')
@@ -85,13 +91,33 @@ export default function Schedule({
 
   const todayISO = toISODate(startOfToday())
   const settings = store.data.reminderSettings
-  const thisMonday = mondayOf(now)
-  const weekNo = teachingWeekNumber(weekMonday, store.data.termStart)
-  const visibleCourses = useMemo(
-    () => store.data.courses.filter((c) => courseInTeachingWeek(c, weekNo)),
-    [store.data.courses, weekNo],
+  const view = store.data.timetableView
+  const currentTerm = store.currentTerm
+  const thisWeekStart = startOfWeek(now, view.weekStartsOn)
+  const weekNo = teachingWeekNumber(weekMonday, currentTerm?.startDate, view.weekStartsOn)
+  const termCourses = useMemo(
+    () => store.data.courses.filter((c) => courseInTerm(c, store.data.currentTermId)),
+    [store.data.courses, store.data.currentTermId],
   )
+  const visibleCourses = useMemo(() => {
+    return termCourses.filter((c) => {
+      const onWeek = courseInTeachingWeek(c, weekNo)
+      return onWeek || view.showOffWeekCourses
+    })
+  }, [termCourses, view.showOffWeekCourses, weekNo])
+  const offWeekIds = useMemo(() => {
+    const ids = new Set<string>()
+    if (!view.showOffWeekCourses) return ids
+    for (const course of termCourses) {
+      if (!courseInTeachingWeek(course, weekNo)) ids.add(course.id)
+    }
+    return ids
+  }, [termCourses, view.showOffWeekCourses, weekNo])
   const selected = store.data.courses.find((c) => c.id === selectedId)
+
+  useEffect(() => {
+    setWeekMonday((prev) => startOfWeek(prev, view.weekStartsOn))
+  }, [view.weekStartsOn])
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60_000)
@@ -191,6 +217,7 @@ export default function Schedule({
   }
 
   const onImport = async (file: File) => {
+    setPeriodTable(view.classPeriods)
     setImporting(true)
     setStatus('')
     if (previewUrl) URL.revokeObjectURL(previewUrl)
@@ -247,7 +274,7 @@ export default function Schedule({
       <header className="view-head">
         <h2>超级课程表</h2>
         <p className="muted">
-          周视图和超级课程表一样：横轴周一到周日，纵轴一天从早到晚（默认 06:00–22:00）。点空格子加课，点色块看详情。
+          课表是一张从 00:00 到 23:59 的表格。点右上角「课表设置」选学年学期、开学周数，并隐藏凌晨等不上课的行。
         </p>
       </header>
 
@@ -272,37 +299,45 @@ export default function Schedule({
         <>
           <div className="card week-toolbar">
             <div className="row wrap">
-              <button className="btn ghost" onClick={() => setWeekMonday((d) => shiftWeek(d, -1))}>
+              <button
+                className="btn ghost"
+                disabled={Boolean(currentTerm?.startDate && weekNo != null && weekNo <= 1)}
+                onClick={() => setWeekMonday((d) => shiftWeek(d, -1))}
+              >
                 上一周
               </button>
               <div className="week-toolbar-title">
                 <strong>
-                  {weekNo != null ? `第 ${weekNo} 周` : '周课表'}
-                  {weekMonday.getTime() === thisMonday.getTime() ? ' · 本周' : ''}
+                  {weekNo != null
+                    ? `第 ${weekNo}${currentTerm ? ` / ${currentTerm.weekCount}` : ''} 周`
+                    : '周课表'}
+                  {weekMonday.getTime() === thisWeekStart.getTime() ? ' · 本周' : ''}
                 </strong>
-                <span className="muted">{weekRangeLabel(weekMonday)}</span>
+                <span className="muted">
+                  {currentTerm ? termLabel(currentTerm) : ''} {weekRangeLabel(weekMonday)}
+                </span>
               </div>
-              <button className="btn ghost" onClick={() => setWeekMonday((d) => shiftWeek(d, 1))}>
+              <button
+                className="btn ghost"
+                disabled={Boolean(
+                  currentTerm?.startDate && weekNo != null && weekNo >= currentTerm.weekCount,
+                )}
+                onClick={() => setWeekMonday((d) => shiftWeek(d, 1))}
+              >
                 下一周
               </button>
-              <button className="btn ghost" onClick={() => setWeekMonday(thisMonday)}>
+              <button className="btn ghost" onClick={() => setWeekMonday(thisWeekStart)}>
                 回到本周
+              </button>
+              <button className="btn primary" onClick={() => setSettingsOpen(true)}>
+                课表设置
               </button>
             </div>
             <div className="row wrap" style={{ marginTop: 10 }}>
-              <label className="week-term">
-                开学周一
-                <input
-                  className="input slim"
-                  type="date"
-                  value={store.data.termStart || ''}
-                  onChange={(e) => store.setTermStart(e.target.value || undefined)}
-                />
-              </label>
               <button className="btn ghost" onClick={() => setShowAdd((v) => !v)}>
                 {showAdd ? '收起加课' : '加一节课'}
               </button>
-              {store.data.courses.length === 0 && (
+              {termCourses.length === 0 && (
                 <button
                   className="btn ghost"
                   onClick={() => {
@@ -316,10 +351,19 @@ export default function Schedule({
                   载入示例课表
                 </button>
               )}
+              {currentTerm?.startDate ? (
+                <button
+                  className="btn ghost"
+                  onClick={() =>
+                    setWeekMonday(
+                      weekStartForTeachingWeek(currentTerm.startDate, 1, view.weekStartsOn),
+                    )
+                  }
+                >
+                  第1周
+                </button>
+              ) : null}
             </div>
-            <p className="muted">
-              横轴是周一到周日，纵轴是当天时间表。没填开学周一就显示全部课程；填了以后按「第几周 / 单双周」过滤。
-            </p>
           </div>
 
           {showAdd && (
@@ -397,9 +441,11 @@ export default function Schedule({
             <WeekTimetable
               courses={visibleCourses}
               exams={store.data.exams}
-              monday={weekMonday}
+              weekStart={weekMonday}
               now={now}
+              view={view}
               selectedId={selectedId}
+              offWeekIds={offWeekIds}
               onSelectCourse={(course) => setSelectedId(course.id)}
               onSelectSlot={(slot) => {
                 setWeekday(slot.weekday)
@@ -409,8 +455,15 @@ export default function Schedule({
                 setSelectedId(undefined)
                 setStatus(`已选 ${WEEKDAY_LABELS[slot.weekday - 1]} ${slot.startTime}-${slot.endTime}，补课程名后点「加到课表」`)
               }}
+              onHideHour={store.toggleHiddenHour}
+              onHideWeekday={store.toggleHiddenWeekday}
             />
           </div>
+          <ScheduleSettings
+            store={store}
+            open={settingsOpen}
+            onClose={() => setSettingsOpen(false)}
+          />
         </>
       )}
 
@@ -418,9 +471,9 @@ export default function Schedule({
         <div className="card">
           <h3>从表格或图片导入</h3>
           <p className="muted">
-            表格（xlsx / xls / csv / ods）在浏览器里直接解析。照片、截图、PDF
-            走主站 MathCode 同一套视觉模型（通义千问 qwen-vl-max），抽出课程、教室、时间、老师，并按开始/结束时间算时长。Word
-            / 文本由后台抽文字后再识别。没印出来的老师或教室不会瞎填。
+            识别结果会写入当前学期（{currentTerm ? termLabel(currentTerm) : '未选择'}）。表格（xlsx / xls / csv /
+            ods）在浏览器里直接解析。照片、截图、PDF 走主站 MathCode
+            同一套视觉模型，抽出课程、教室、时间、老师和时长。没印出来的老师或教室不会瞎填。
           </p>
           <p className="muted">
             周课表：第一行列周一到周日，格子里写课程 / 周次 / 教室 / 老师。拍照请尽量端正、无反光。

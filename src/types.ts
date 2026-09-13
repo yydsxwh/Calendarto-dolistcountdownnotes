@@ -2,6 +2,36 @@ export type View = 'today' | 'calendar' | 'todos' | 'schedule' | 'days' | 'notes
 
 export type ExamKind = 'midterm' | 'final' | 'makeup' | 'other'
 
+export type TermKind = 'fall' | 'spring' | 'summer' | 'winter' | 'practice' | 'intern'
+
+export interface Term {
+  id: string
+  /** 学年起始年，例如 2026 表示 2026-2027 学年 */
+  yearStart: number
+  kind: TermKind
+  title?: string
+  /** 开学 / 行课开始日期 */
+  startDate: string
+  /** 本学期一共几周 */
+  weekCount: number
+}
+
+export interface ClassPeriod {
+  start: string
+  end: string
+}
+
+export interface TimetableViewSettings {
+  /** 1=周一起始，7=周日起始 */
+  weekStartsOn: 1 | 7
+  showOffWeekCourses: boolean
+  /** 隐藏的小时行，0–23 */
+  hiddenHours: number[]
+  /** 隐藏的星期列，1–7 */
+  hiddenWeekdays: number[]
+  classPeriods: ClassPeriod[]
+}
+
 export interface Course {
   id: string
   name: string
@@ -14,6 +44,7 @@ export interface Course {
   color: string
   remindMinutes: number
   createdAt: number
+  termId?: string
 }
 
 export interface Exam {
@@ -99,7 +130,10 @@ export interface AppData {
   courses: Course[]
   exams: Exam[]
   reminderSettings: ReminderSettings
-  /** 本学期第 1 周的周一，用来算「第几周」并过滤课表周次 */
+  terms: Term[]
+  currentTermId?: string
+  timetableView: TimetableViewSettings
+  /** 兼容旧数据：等于当前学期 startDate */
   termStart?: string
 }
 

@@ -1,11 +1,12 @@
 import { useMemo } from 'react'
 import { addClockMinutes, formatDuration } from '../lib/periods'
+import type { TimetableViewSettings } from '../types'
 import {
   HOUR_PX,
   blockStyle,
-  dayBounds,
   examsForDay,
-  hourMarks,
+  gridHeight,
+  hourMarksFromHidden,
   layoutDayCourses,
   nowLineTop,
   slotFromOffset,
@@ -17,29 +18,40 @@ import { EXAM_KIND_LABEL, type Course, type Exam } from '../types'
 export default function WeekTimetable({
   courses,
   exams,
-  monday,
+  weekStart,
   now,
+  view,
   selectedId,
+  offWeekIds,
   onSelectCourse,
   onSelectSlot,
+  onHideHour,
+  onHideWeekday,
 }: {
   courses: Course[]
   exams: Exam[]
-  monday: Date
+  weekStart: Date
   now: Date
+  view: TimetableViewSettings
   selectedId?: string
+  offWeekIds?: Set<string>
   onSelectCourse: (course: Course) => void
   onSelectSlot: (next: { weekday: number; startTime: string; endTime: string }) => void
+  onHideHour?: (hour: number) => void
+  onHideWeekday?: (weekday: number) => void
 }) {
-  const days = useMemo(() => weekDays(monday, now), [monday, now])
-  const bounds = useMemo(() => dayBounds([...courses, ...exams]), [courses, exams])
-  const marks = useMemo(() => hourMarks(bounds.start, bounds.end), [bounds.end, bounds.start])
-  const bodyHeight = ((bounds.end - bounds.start) / 60) * HOUR_PX
-  const nowTop = nowLineTop(now, bounds.start, bounds.end, HOUR_PX)
+  const days = useMemo(
+    () => weekDays(weekStart, now, view.weekStartsOn, view.hiddenWeekdays),
+    [now, view.hiddenWeekdays, view.weekStartsOn, weekStart],
+  )
+  const marks = useMemo(() => hourMarksFromHidden(view.hiddenHours), [view.hiddenHours])
+  const bodyHeight = gridHeight(view.hiddenHours, HOUR_PX)
+  const nowTop = nowLineTop(now, view.hiddenHours, HOUR_PX)
+  const columns = `48px repeat(${Math.max(1, days.length)}, minmax(0, 1fr))`
 
   return (
     <div className="week-tt">
-      <div className="week-tt-head">
+      <div className="week-tt-head" style={{ gridTemplateColumns: columns }}>
         <div className="week-tt-gutter" aria-hidden="true">
           时间
         </div>
@@ -52,22 +64,40 @@ export default function WeekTimetable({
             <span>
               {day.date.getMonth() + 1}/{day.date.getDate()}
             </span>
+            {onHideWeekday && days.length > 1 ? (
+              <button
+                type="button"
+                className="week-tt-hide"
+                onClick={() => onHideWeekday(day.weekday)}
+                aria-label={`隐藏${day.label}`}
+              >
+                隐藏
+              </button>
+            ) : null}
           </div>
         ))}
       </div>
-      <div className="week-tt-body" style={{ height: bodyHeight }}>
+      <div className="week-tt-body" style={{ height: bodyHeight, gridTemplateColumns: columns }}>
         <div className="week-tt-gutter-col">
-          {marks.map((mark, i) =>
-            i === marks.length - 1 ? null : (
-              <div
-                key={mark.minutes}
-                className="week-tt-hour"
-                style={{ top: ((mark.minutes - bounds.start) / 60) * HOUR_PX }}
-              >
-                {mark.label}
-              </div>
-            ),
-          )}
+          {marks.map((mark) => (
+            <div
+              key={mark.hour}
+              className="week-tt-hour"
+              style={{ top: marks.indexOf(mark) * HOUR_PX }}
+            >
+              <span>{mark.label}</span>
+              {onHideHour && marks.length > 1 ? (
+                <button
+                  type="button"
+                  className="week-tt-hide"
+                  onClick={() => onHideHour(mark.hour)}
+                  aria-label={`隐藏 ${mark.label} 这一行`}
+                >
+                  ×
+                </button>
+              ) : null}
+            </div>
+          ))}
         </div>
         {days.map((day) => (
           <DayColumn
@@ -75,10 +105,11 @@ export default function WeekTimetable({
             day={day}
             courses={courses.filter((c) => c.weekday === day.weekday)}
             exams={examsForDay(exams, day.iso)}
-            dayStart={bounds.start}
+            hiddenHours={view.hiddenHours}
             marks={marks}
             nowTop={day.isToday ? nowTop : null}
             selectedId={selectedId}
+            offWeekIds={offWeekIds}
             onSelectCourse={onSelectCourse}
             onSelectSlot={onSelectSlot}
           />
@@ -92,26 +123,28 @@ function DayColumn({
   day,
   courses,
   exams,
-  dayStart,
+  hiddenHours,
   marks,
   nowTop,
   selectedId,
+  offWeekIds,
   onSelectCourse,
   onSelectSlot,
 }: {
   day: WeekDayColumn
   courses: Course[]
   exams: Exam[]
-  dayStart: number
-  marks: { minutes: number; label: string }[]
+  hiddenHours: number[]
+  marks: { hour: number; minutes: number; label: string }[]
   nowTop: number | null
   selectedId?: string
+  offWeekIds?: Set<string>
   onSelectCourse: (course: Course) => void
   onSelectSlot: (next: { weekday: number; startTime: string; endTime: string }) => void
 }) {
   const laid = useMemo(
-    () => layoutDayCourses(courses, dayStart, HOUR_PX),
-    [courses, dayStart],
+    () => layoutDayCourses(courses, hiddenHours, HOUR_PX),
+    [courses, hiddenHours],
   )
 
   return (
@@ -119,24 +152,20 @@ function DayColumn({
       className={`week-tt-day ${day.isToday ? 'is-today' : ''} ${day.isWeekend ? 'is-weekend' : ''}`}
       onClick={(event) => {
         const target = event.target as HTMLElement
-        if (target.closest('.week-tt-course, .week-tt-exam')) return
+        if (target.closest('.week-tt-course, .week-tt-exam, .week-tt-hide')) return
         const rect = event.currentTarget.getBoundingClientRect()
-        const slot = slotFromOffset(event.clientY - rect.top, dayStart, HOUR_PX)
+        const slot = slotFromOffset(event.clientY - rect.top, hiddenHours, HOUR_PX)
         onSelectSlot({ weekday: day.weekday, ...slot })
       }}
     >
-      {marks.slice(0, -1).map((mark) => (
-        <div
-          key={mark.minutes}
-          className="week-tt-line"
-          style={{ top: ((mark.minutes - dayStart) / 60) * HOUR_PX }}
-        />
+      {marks.map((mark, index) => (
+        <div key={mark.hour} className="week-tt-line" style={{ top: index * HOUR_PX }} />
       ))}
       {laid.map((item) => (
         <button
           key={item.course.id}
           type="button"
-          className={`week-tt-course ${selectedId === item.course.id ? 'is-selected' : ''}`}
+          className={`week-tt-course ${selectedId === item.course.id ? 'is-selected' : ''} ${offWeekIds?.has(item.course.id) ? 'is-offweek' : ''}`}
           style={{ ...blockStyle(item), background: item.course.color }}
           onClick={(event) => {
             event.stopPropagation()
@@ -167,7 +196,7 @@ function DayColumn({
               createdAt: exam.createdAt,
             },
           ],
-          dayStart,
+          hiddenHours,
           HOUR_PX,
         )[0]
         if (!fake) return null

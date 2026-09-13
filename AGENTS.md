@@ -49,10 +49,12 @@ Standard scripts are defined in `package.json`:
   通义千问 `qwen-vl-max`). Vite proxies `/api/days` to `https://www.yydsxwh.com`
   in `npm run dev`. Sample files live in `public/samples/`.
   Parser self-test: `npm run test:timetable` (import + week-grid layout).
-  The `#schedule` week view is a Super Course Schedule-style grid:
-  columns Monday–Sunday, rows 06:00–22:00 (expands if a class is
-  outside). Click an empty cell to add; set `termStart` to filter by
-  teaching week / 单双周.
+  The `#schedule` week view is an Excel-like grid: columns are
+  weekdays, rows are 00:00–23:59. Dawn hours 00–05 are hidden by
+  default and can be toggled in 课表设置. Terms live in
+  `AppData.terms` (学年 / 第1·2学期 / 寒暑假小学期 / 社会实践 /
+  实习). Import writes into the current term. `npm run test:timetable`
+  covers import + week-grid hide/layout.
 - Class/exam reminders use the Notification API plus an in-app banner; they
   fire while the tab is open. Defaults: class 15 minutes, exam 1440 minutes
   and optionally again at 60 minutes.

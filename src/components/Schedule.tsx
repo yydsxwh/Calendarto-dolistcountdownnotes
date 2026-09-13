@@ -483,6 +483,7 @@ export default function Schedule({
           <div className="tt-wrap card">
             <WeekTimetable
               courses={visibleCourses}
+              axisCourses={termCourses}
               exams={store.data.exams}
               weekStart={weekMonday}
               now={now}

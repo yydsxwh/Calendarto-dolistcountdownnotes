@@ -61,9 +61,13 @@ Standard scripts are defined in `package.json`:
   this 3.4GB box while PM2 is up. Hidden dawn rows expand from a ▾ chip in the
   时间 header — do not put 隐藏 on weekday columns.   There is no standalone 「导入」 tab. Course import lives
   on 周课表 (拍教务处课表 / xlsx / csv); exam import lives
-  on 考试时间表 and writes a date-sorted table. Import
+  on 考试时间表 and writes a date-sorted table.   Import
   infers class periods from printed clocks (e.g. 08:30) and hides hours
-  outside the first/last class. Terms live in
+  outside the first/last class. The week-grid left gutter is a timeline:
+  ticks follow imported class start/end clocks (08:30, 09:30, 11:30),
+  not only whole hours, and the visible range clips to the first start
+  through the last end. Do not feed inferred 45-minute 小节 splits into
+  those ticks. Terms live in
   `AppData.terms` (学年 / 第1·2学期 / 寒暑假小学期 / 社会实践 /
   实习). Import writes into the current term. `npm run test:timetable`
   covers import + week-grid hide/layout.

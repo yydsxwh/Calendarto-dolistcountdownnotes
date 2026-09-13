@@ -756,7 +756,7 @@ select.input {
 .week-tt-head,
 .week-tt-body {
   display: grid;
-  grid-template-columns: 48px repeat(7, minmax(0, 1fr));
+  grid-template-columns: 54px repeat(7, minmax(0, 1fr));
 }
 
 .week-tt-head {
@@ -831,6 +831,17 @@ select.input {
   line-height: 1.2;
   color: var(--muted);
   text-align: right;
+  transform: translateY(-2px);
+}
+
+.week-tt-hour.is-event {
+  color: #9d174d;
+  font-weight: 650;
+}
+
+.week-tt-hour.is-hour {
+  font-size: 10px;
+  opacity: 0.72;
 }
 
 .week-tt-line {
@@ -838,6 +849,10 @@ select.input {
   left: 0;
   right: 0;
   border-top: 1px dashed rgba(225, 29, 72, 0.12);
+}
+
+.week-tt-line.is-event {
+  border-top-color: rgba(225, 29, 72, 0.28);
 }
 
 .week-tt-course,

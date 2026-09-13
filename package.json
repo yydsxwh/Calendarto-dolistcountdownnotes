@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "日历、待办、倒数日和笔记 - Calendar, to-do list, countdown days and notes",
+  "description": "颗秒日事：日历、待办、倒数日和便签一体的本地优先网页应用",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

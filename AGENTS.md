@@ -2,16 +2,16 @@
 
 ## Project overview
 
-A local-first single-page web app combining four tools described in the README
-(日历、待办、倒数日和笔记):
+网页产品 **颗秒日事**：日历、待办、倒数日、便签四合一，本地优先。
 
-- **日历 (Calendar)** — month grid with navigation and today/selected highlight.
-- **待办 (To-do)** — add/complete/filter/delete tasks.
-- **倒数日 (Countdown)** — count days until/since dated events.
-- **笔记 (Notes)** — quick editable notes.
+- **今日** — 最近倒数日、今天/逾期待办、钉住便签
+- **日历** — 月历圆点，点日期可给这一天加待办 / 倒数日 / 便签
+- **待办** — 到期日与优先级
+- **倒数日** — Days Matter 风格大数字卡片，可每年重复
+- **便签** — 彩色便利贴，可钉住
 
-All data is persisted client-side in the browser's `localStorage`; there is no
-backend, database, login, or external service.
+数据在浏览器 `localStorage`（键 `kemiao-days-v1`），无后端、无登录、无密钥。
+目标线上入口是主站软件产品栏：`https://www.yydsxwh.com/products` → `/products/days`。
 
 ## Tech stack
 
@@ -37,5 +37,13 @@ Standard scripts are defined in `package.json`:
 - There is no backend/service to start and no environment variables or secrets
   are required — running the Vite dev server is sufficient to exercise all
   features end to end.
-- App state lives entirely in browser `localStorage`; to reset to a clean state,
-  clear site data / localStorage in the browser rather than touching any files.
+- App state lives entirely in browser `localStorage` (`kemiao-days-v1`); reset by
+  clearing site data, or use the in-app「清空本机数据」.
+- Views are hash routes (`#today` `#calendar` `#todos` `#days` `#notes`).
+- Production subpath: set `base: '/products/days/'` in `vite.config.ts` before `npm run build`.
+- Going live on yydsxwh.com is **not** done from this repo alone. The products
+  catalog lives in `yydsxwh/Andyyyds` (`packages/shared/src/software-products.ts`
+  plus a `@andyyyds/days` package and `src/app/products/days` thin route). This
+  environment cannot push Andyyyds. Do not ask the user to paste an SSH private
+  key into chat; use environment secrets or a PR on Andyyyds + their existing
+  Aliyun deploy script.

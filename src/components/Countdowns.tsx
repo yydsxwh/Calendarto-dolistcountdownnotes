@@ -1,93 +1,114 @@
-import { useState } from 'react'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+import { useMemo, useState } from 'react'
+import { daysUntil, nextOccurrence } from '../lib/dates'
+import { COUNTDOWN_COLORS, COUNTDOWN_EMOJIS } from '../types'
+import type { AppStore } from '../hooks/useAppStore'
 
-interface Countdown {
-  id: string
-  title: string
-  date: string // YYYY-MM-DD
-}
-
-function daysBetween(target: string): number {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const t = new Date(target + 'T00:00:00')
-  const diff = Math.round((t.getTime() - today.getTime()) / 86400000)
-  return diff
-}
-
-export default function Countdowns() {
-  const [items, setItems] = useLocalStorage<Countdown[]>('countdowns', [])
+export default function Countdowns({ store }: { store: AppStore }) {
   const [title, setTitle] = useState('')
   const [date, setDate] = useState('')
+  const [color, setColor] = useState<string>(COUNTDOWN_COLORS[0])
+  const [emoji, setEmoji] = useState<string>(COUNTDOWN_EMOJIS[0])
+  const [repeatYearly, setRepeatYearly] = useState(false)
 
   const add = () => {
     if (!title.trim() || !date) return
-    setItems(
-      [...items, { id: crypto.randomUUID(), title: title.trim(), date }].sort(
-        (a, b) => a.date.localeCompare(b.date),
-      ),
-    )
+    store.addCountdown(title, date, { color, emoji, repeatYearly })
     setTitle('')
-    setDate('')
   }
 
-  const remove = (id: string) => setItems(items.filter((i) => i.id !== id))
+  const cards = useMemo(
+    () =>
+      [...store.data.countdowns]
+        .map((c) => ({ ...c, next: nextOccurrence(c.date, c.repeatYearly) }))
+        .sort((a, b) => a.next.localeCompare(b.next)),
+    [store.data.countdowns],
+  )
 
   return (
-    <section className="panel">
-      <header className="panel-head">
+    <section className="view">
+      <header className="view-head">
         <h2>倒数日</h2>
-        <span className="pill">{items.length} 个事件</span>
+        <p className="muted">像 Days Matter：一张卡片，一个大数字，重要日子一眼看到。</p>
       </header>
 
-      <div className="row wrap">
-        <input
-          className="input"
-          placeholder="事件名称，例如「春节」"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          aria-label="事件名称"
-        />
-        <input
-          className="input"
-          type="date"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          aria-label="事件日期"
-        />
-        <button className="btn primary" onClick={add}>
-          添加
-        </button>
+      <div className="card">
+        <div className="row wrap">
+          <input
+            className="input"
+            placeholder="事件名称，例如「考研」"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            aria-label="事件名称"
+          />
+          <input
+            className="input slim"
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            aria-label="事件日期"
+          />
+          <select className="input slim" value={emoji} onChange={(e) => setEmoji(e.target.value)}>
+            {COUNTDOWN_EMOJIS.map((e) => (
+              <option key={e} value={e}>
+                {e}
+              </option>
+            ))}
+          </select>
+          <label className="check tiny">
+            <input
+              type="checkbox"
+              checked={repeatYearly}
+              onChange={(e) => setRepeatYearly(e.target.checked)}
+            />
+            <span>每年重复</span>
+          </label>
+          <button className="btn primary" onClick={add}>
+            添加
+          </button>
+        </div>
+        <div className="swatches" aria-label="颜色">
+          {COUNTDOWN_COLORS.map((c) => (
+            <button
+              key={c}
+              className={`swatch ${color === c ? 'on' : ''}`}
+              style={{ background: c }}
+              onClick={() => setColor(c)}
+              aria-label={c}
+            />
+          ))}
+        </div>
       </div>
 
-      <ul className="list">
-        {items.length === 0 && <li className="empty">还没有倒数日事件</li>}
-        {items.map((i) => {
-          const d = daysBetween(i.date)
-          const label =
-            d === 0 ? '就是今天' : d > 0 ? `还有 ${d} 天` : `已过 ${-d} 天`
+      <div className="cd-grid">
+        {cards.length === 0 && <p className="empty">还没有倒数日。先记下一个你在盼的日子。</p>}
+        {cards.map((c) => {
+          const d = daysUntil(c.next)
+          const label = d === 0 ? '就是今天' : d > 0 ? '还有' : '已过'
           return (
-            <li key={i.id} className="list-item">
-              <div className="cd-info">
-                <span className="cd-title">{i.title}</span>
-                <span className="cd-date">{i.date}</span>
+            <article key={c.id} className="cd-card" style={{ ['--cd' as string]: c.color }}>
+              <div className="cd-top">
+                <span className="cd-emoji">{c.emoji}</span>
+                <button className="icon-btn light" onClick={() => store.removeCountdown(c.id)} aria-label="删除">
+                  ✕
+                </button>
               </div>
-              <span
-                className={`cd-days ${d > 0 ? 'future' : d === 0 ? 'today' : 'past'}`}
-              >
-                {label}
-              </span>
-              <button
-                className="icon-btn"
-                onClick={() => remove(i.id)}
-                aria-label="删除"
-              >
-                ✕
-              </button>
-            </li>
+              <h3>{c.title}</h3>
+              <p className="cd-date">{c.next}{c.repeatYearly ? ' · 每年' : ''}</p>
+              <div className="cd-num">
+                {d === 0 ? (
+                  <strong>今天</strong>
+                ) : (
+                  <>
+                    <span>{label}</span>
+                    <strong>{Math.abs(d)}</strong>
+                    <span>天</span>
+                  </>
+                )}
+              </div>
+            </article>
           )
         })}
-      </ul>
+      </div>
     </section>
   )
 }

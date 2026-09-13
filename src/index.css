@@ -97,7 +97,8 @@ textarea {
   color: var(--muted);
 }
 
-.desktop-nav {
+.desktop-nav,
+.tabs.desktop-nav {
   display: none;
 }
 
@@ -879,7 +880,8 @@ select.input {
 }
 
 @media (min-width: 860px) {
-  .desktop-nav {
+  .desktop-nav,
+  .tabs.desktop-nav {
     display: flex;
   }
 
@@ -898,8 +900,11 @@ select.input {
     grid-template-columns: 1fr;
   }
 
-  .brand p,
   .search {
     display: none;
+  }
+
+  .brand p {
+    font-size: 10px;
   }
 }

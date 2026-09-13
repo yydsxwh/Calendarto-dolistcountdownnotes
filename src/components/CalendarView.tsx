@@ -21,9 +21,9 @@ export default function CalendarView({ store }: { store: AppStore }) {
   const dayItems = store.itemsOnDate(iso)
 
   const marks = useMemo(() => {
-    const map = new Map<string, { todo: boolean; day: boolean; note: boolean }>()
-    const mark = (key: string, field: 'todo' | 'day' | 'note') => {
-      const cur = map.get(key) ?? { todo: false, day: false, note: false }
+    const map = new Map<string, { todo: boolean; day: boolean; note: boolean; exam: boolean }>()
+    const mark = (key: string, field: 'todo' | 'day' | 'note' | 'exam') => {
+      const cur = map.get(key) ?? { todo: false, day: false, note: false, exam: false }
       cur[field] = true
       map.set(key, cur)
     }
@@ -36,6 +36,7 @@ export default function CalendarView({ store }: { store: AppStore }) {
       }
     })
     store.data.notes.forEach((n) => n.date && mark(n.date, 'note'))
+    store.data.exams.forEach((e) => mark(e.date, 'exam'))
     return map
   }, [store.data, view])
 
@@ -96,6 +97,7 @@ export default function CalendarView({ store }: { store: AppStore }) {
                   {dots?.todo && <i className="dot todo" />}
                   {dots?.day && <i className="dot day" />}
                   {dots?.note && <i className="dot note" />}
+                  {dots?.exam && <i className="dot exam" />}
                 </span>
               </button>
             )
@@ -149,6 +151,22 @@ export default function CalendarView({ store }: { store: AppStore }) {
                 {c.emoji} {c.title}
               </span>
               <button className="icon-btn" onClick={() => store.removeCountdown(c.id)} aria-label="删除">
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        <h4>考试</h4>
+        <ul className="mini-list">
+          {dayItems.exams.length === 0 && <li className="empty-inline">这天没有考试</li>}
+          {dayItems.exams.map((e) => (
+            <li key={e.id}>
+              <span>
+                {e.name} {e.startTime}
+                {e.location ? ` · ${e.location}` : ''}
+              </span>
+              <button className="icon-btn" onClick={() => store.removeExam(e.id)} aria-label="删除考试">
                 ✕
               </button>
             </li>

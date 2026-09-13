@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { nextOccurrence, toISODate } from '../lib/dates'
 import {
   createCountdown,
+  createCourse,
+  createExam,
   createNote,
   createTodo,
   emptyData,
@@ -10,7 +12,16 @@ import {
   parseImport,
   saveData,
 } from '../lib/store'
-import type { AppData, Countdown, Note, Priority, Todo } from '../types'
+import type {
+  AppData,
+  Countdown,
+  Course,
+  Exam,
+  Note,
+  Priority,
+  ReminderSettings,
+  Todo,
+} from '../types'
 
 export function useAppStore() {
   const [data, setData] = useState<AppData>(emptyData)
@@ -103,6 +114,67 @@ export function useAppStore() {
     setData((prev) => ({ ...prev, notes: prev.notes.filter((n) => n.id !== id) }))
   }, [])
 
+  const addCourse = useCallback((name: string, extras?: Partial<Omit<Course, 'id' | 'name' | 'createdAt'>>) => {
+    const course = createCourse(name, extras)
+    if (!course.name) return
+    setData((prev) => ({ ...prev, courses: [...prev.courses, course] }))
+  }, [])
+
+  const addCourses = useCallback((courses: Course[]) => {
+    if (courses.length === 0) return
+    setData((prev) => ({ ...prev, courses: [...prev.courses, ...courses] }))
+  }, [])
+
+  const updateCourse = useCallback((id: string, patch: Partial<Course>) => {
+    setData((prev) => ({
+      ...prev,
+      courses: prev.courses.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+    }))
+  }, [])
+
+  const removeCourse = useCallback((id: string) => {
+    setData((prev) => ({ ...prev, courses: prev.courses.filter((c) => c.id !== id) }))
+  }, [])
+
+  const clearCourses = useCallback(() => {
+    setData((prev) => ({ ...prev, courses: [] }))
+  }, [])
+
+  const addExam = useCallback((name: string, extras?: Partial<Omit<Exam, 'id' | 'name' | 'createdAt'>>) => {
+    const exam = createExam(name, extras)
+    if (!exam.name || !exam.date) return
+    setData((prev) => ({
+      ...prev,
+      exams: [...prev.exams, exam].sort((a, b) => a.date.localeCompare(b.date)),
+    }))
+  }, [])
+
+  const addExams = useCallback((exams: Exam[]) => {
+    if (exams.length === 0) return
+    setData((prev) => ({
+      ...prev,
+      exams: [...prev.exams, ...exams].sort((a, b) => a.date.localeCompare(b.date)),
+    }))
+  }, [])
+
+  const updateExam = useCallback((id: string, patch: Partial<Exam>) => {
+    setData((prev) => ({
+      ...prev,
+      exams: prev.exams.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+    }))
+  }, [])
+
+  const removeExam = useCallback((id: string) => {
+    setData((prev) => ({ ...prev, exams: prev.exams.filter((e) => e.id !== id) }))
+  }, [])
+
+  const updateReminderSettings = useCallback((patch: Partial<ReminderSettings>) => {
+    setData((prev) => ({
+      ...prev,
+      reminderSettings: { ...prev.reminderSettings, ...patch },
+    }))
+  }, [])
+
   const clearAll = useCallback(() => setData(emptyData()), [])
 
   const downloadBackup = useCallback(() => {
@@ -127,6 +199,7 @@ export function useAppStore() {
         (c) => nextOccurrence(c.date, c.repeatYearly) === iso || c.date === iso,
       ),
       notes: data.notes.filter((n) => n.date === iso),
+      exams: data.exams.filter((e) => e.date === iso),
     }),
     [data],
   )
@@ -137,6 +210,8 @@ export function useAppStore() {
       remaining,
       countdownCount: data.countdowns.length,
       noteCount: data.notes.length,
+      courseCount: data.courses.length,
+      examCount: data.exams.length,
     }
   }, [data])
 
@@ -154,6 +229,16 @@ export function useAppStore() {
     addNote,
     updateNote,
     removeNote,
+    addCourse,
+    addCourses,
+    updateCourse,
+    removeCourse,
+    clearCourses,
+    addExam,
+    addExams,
+    updateExam,
+    removeExam,
+    updateReminderSettings,
     clearAll,
     downloadBackup,
     importBackup,

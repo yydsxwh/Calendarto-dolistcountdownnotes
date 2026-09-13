@@ -1,4 +1,65 @@
-export type View = 'today' | 'calendar' | 'todos' | 'days' | 'notes'
+export type View = 'today' | 'calendar' | 'todos' | 'schedule' | 'days' | 'notes'
+
+export type ExamKind = 'midterm' | 'final' | 'makeup' | 'other'
+
+export interface Course {
+  id: string
+  name: string
+  weekday: number
+  startTime: string
+  endTime: string
+  location?: string
+  teacher?: string
+  weeks?: string
+  color: string
+  remindMinutes: number
+  createdAt: number
+}
+
+export interface Exam {
+  id: string
+  name: string
+  kind: ExamKind
+  date: string
+  startTime: string
+  endTime?: string
+  location?: string
+  seat?: string
+  remindMinutes: number
+  createdAt: number
+}
+
+export interface ReminderSettings {
+  enabled: boolean
+  classDefaultMinutes: number
+  examDefaultMinutes: number
+  examAlsoHourBefore: boolean
+}
+
+export const COURSE_COLORS = [
+  '#0ea5e9',
+  '#8b5cf6',
+  '#10b981',
+  '#f59e0b',
+  '#ef4444',
+  '#ec4899',
+  '#14b8a6',
+  '#6366f1',
+] as const
+
+export const defaultReminderSettings = (): ReminderSettings => ({
+  enabled: true,
+  classDefaultMinutes: 15,
+  examDefaultMinutes: 1440,
+  examAlsoHourBefore: true,
+})
+
+export const EXAM_KIND_LABEL: Record<ExamKind, string> = {
+  midterm: '期中',
+  final: '期末',
+  makeup: '补考',
+  other: '其他',
+}
 
 export type Priority = 'high' | 'medium' | 'low'
 
@@ -35,6 +96,9 @@ export interface AppData {
   todos: Todo[]
   countdowns: Countdown[]
   notes: Note[]
+  courses: Course[]
+  exams: Exam[]
+  reminderSettings: ReminderSettings
 }
 
 export const NOTE_COLORS = [

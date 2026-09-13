@@ -32,4 +32,15 @@ npm run lint
 npm run build
 ```
 
-把 `vite.config.ts` 里的 `base` 改成 `/products/days/` 后再 `npm run build`，把 `dist/` 挂到该路径；或按主站规范把 UI 迁入 `Andyyyds` 的 `@andyyyds/days` 包后走现有阿里云发布流程。
+线上入口：
+
+- 产品栏：https://www.yydsxwh.com/products
+- 应用：https://www.yydsxwh.com/products/days/
+
+发布静态包（本机需有 `~/.ssh/yyds_aliyun`，不要把私钥提交进仓库）：
+
+```bash
+./scripts/deploy-days.sh
+```
+
+主站产品卡片在服务器上的 Andyyyds 源码里（`packages/shared/src/software-products.ts`），改完后需要在 `/var/www/yyds-course-platform` 执行 `npm run build` 并 `pm2 restart yyds-course`。

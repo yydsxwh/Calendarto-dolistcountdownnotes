@@ -40,10 +40,18 @@ Standard scripts are defined in `package.json`:
 - App state lives entirely in browser `localStorage` (`kemiao-days-v1`); reset by
   clearing site data, or use the in-app「清空本机数据」.
 - Views are hash routes (`#today` `#calendar` `#todos` `#days` `#notes`).
-- Production subpath: set `base: '/products/days/'` in `vite.config.ts` before `npm run build`.
-- Going live on yydsxwh.com is **not** done from this repo alone. The products
-  catalog lives in `yydsxwh/Andyyyds` (`packages/shared/src/software-products.ts`
-  plus a `@andyyyds/days` package and `src/app/products/days` thin route). This
-  environment cannot push Andyyyds. Do not ask the user to paste an SSH private
-  key into chat; use environment secrets or a PR on Andyyyds + their existing
-  Aliyun deploy script.
+- Production subpath build: `npx vite build --base=/products/days/` then
+  `scripts/deploy-days.sh`.
+- Live URLs: `https://www.yydsxwh.com/products` (card) and
+  `https://www.yydsxwh.com/products/days/` (app). Static files live on the
+  Hong Kong box at `/var/www/yyds-course-platform/public/products/days/`.
+  nginx `location ^~ /products/days/` serves them; the Next app still owns
+  `/products`.
+- SSH: `admin@47.242.157.181` with key file `~/.ssh/yyds_aliyun` (Aliyun
+  console key name may show as `cursor`; key comment is `yyds-deploy`).
+  Never write the private key into the repo or paste it into chat. If a key
+  was pasted, rotate it on the server after deploy.
+- Product catalog edits (`software-products.ts`, locales) are on the live
+  Andyyyds tree at `/var/www/yyds-course-platform`. After those source
+  changes, `npm run build` then `pm2 restart yyds-course`. Keep a `.next`
+  backup before rebuilding.

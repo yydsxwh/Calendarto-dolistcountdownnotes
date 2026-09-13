@@ -774,6 +774,13 @@ select.input {
   border-bottom: 1px solid var(--line);
 }
 
+.week-tt-gutter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
 .week-tt-h {
   display: flex;
   flex-direction: column;

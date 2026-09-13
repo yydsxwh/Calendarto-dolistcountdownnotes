@@ -78,8 +78,24 @@ export default function WeekTimetable({
         </div>
       ) : null}
       <div className="week-tt-head" style={{ gridTemplateColumns: columns }}>
-        <div className="week-tt-gutter" aria-hidden="true">
-          时间
+        <div className="week-tt-gutter">
+          <span>时间</span>
+          {onShowHours
+            ? hiddenRuns
+                .filter((run) => run.start === 0)
+                .map((run) => (
+                  <button
+                    key={`head-${run.start}-${run.end}`}
+                    type="button"
+                    className="week-tt-expand"
+                    onClick={() => onShowHours(hoursInRun(run))}
+                    aria-label={`显示 ${hiddenHourRunLabel(run)}`}
+                    title="展开凌晨不上课的行"
+                  >
+                    ▾ {hiddenHourRunLabel(run)}
+                  </button>
+                ))
+            : null}
         </div>
         {days.map((day) => (
           <div
@@ -111,18 +127,20 @@ export default function WeekTimetable({
             </div>
           ))}
           {onShowHours
-            ? hiddenRuns.map((run) => (
-                <button
-                  key={`${run.start}-${run.end}`}
-                  type="button"
-                  className="week-tt-expand week-tt-expand-hour"
-                  style={{ top: hiddenHourRunTop(run, view.hiddenHours, HOUR_PX) }}
-                  onClick={() => onShowHours(hoursInRun(run))}
-                  aria-label={`显示 ${hiddenHourRunLabel(run)}`}
-                >
-                  ▾ {hiddenHourRunLabel(run)}
-                </button>
-              ))
+            ? hiddenRuns
+                .filter((run) => run.start !== 0)
+                .map((run) => (
+                  <button
+                    key={`${run.start}-${run.end}`}
+                    type="button"
+                    className="week-tt-expand week-tt-expand-hour"
+                    style={{ top: hiddenHourRunTop(run, view.hiddenHours, HOUR_PX) }}
+                    onClick={() => onShowHours(hoursInRun(run))}
+                    aria-label={`显示 ${hiddenHourRunLabel(run)}`}
+                  >
+                    ▾
+                  </button>
+                ))
             : null}
         </div>
         {days.map((day) => (

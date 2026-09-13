@@ -350,8 +350,8 @@ export default function Schedule({
           <h3>从表格或图片导入</h3>
           <p className="muted">
             表格（xlsx / xls / csv / ods）在浏览器里直接解析。照片、截图、PDF
-            走主站 MathCode 同一套视觉模型，抽出课程、教室、时间、老师，并按开始/结束时间算时长。Word
-            文档由后台抽文本后再识别。
+            走主站 MathCode 同一套视觉模型（通义千问 qwen-vl-max），抽出课程、教室、时间、老师，并按开始/结束时间算时长。Word
+            / 文本由后台抽文字后再识别。没印出来的老师或教室不会瞎填。
           </p>
           <p className="muted">
             周课表：第一行列周一到周日，格子里写课程 / 周次 / 教室 / 老师。拍照请尽量端正、无反光。
@@ -384,6 +384,9 @@ export default function Schedule({
             <button className="btn ghost" onClick={() => downloadSample('exam')}>
               下载考试表示例 CSV
             </button>
+            <a className="btn ghost" href={`${import.meta.env.BASE_URL}samples/course-grid.png`} download>
+              下载课表示例图片
+            </a>
             {store.data.courses.length > 0 && (
               <button className="btn ghost" onClick={() => store.clearCourses()}>
                 清空课表
@@ -408,6 +411,7 @@ export default function Schedule({
                       <th>时长</th>
                       <th>地点</th>
                       <th>老师</th>
+                      <th>周次</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -467,6 +471,14 @@ export default function Schedule({
                             value={c.teacher || ''}
                             onChange={(e) =>
                               patchReviewCourse(c.id, { teacher: e.target.value || undefined })
+                            }
+                          />
+                        </td>
+                        <td>
+                          <input
+                            value={c.weeks || ''}
+                            onChange={(e) =>
+                              patchReviewCourse(c.id, { weeks: e.target.value || undefined })
                             }
                           />
                         </td>

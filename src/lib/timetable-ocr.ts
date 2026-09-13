@@ -202,7 +202,8 @@ export async function recognizeTimetableFile(
 
 export async function renderPdfPages(file: File, maxPages = 2): Promise<File[]> {
   const pdfjs = await import('pdfjs-dist')
-  pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`
+  const worker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url')
+  pdfjs.GlobalWorkerOptions.workerSrc = worker.default
   const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise
   const count = Math.min(doc.numPages, maxPages)
   const pages: File[] = []

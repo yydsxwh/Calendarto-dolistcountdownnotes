@@ -87,7 +87,10 @@ export default function Today({
                 <span>
                   {c.startTime}-{c.endTime} {c.name}
                 </span>
-                <em>{c.location || `提前 ${c.remindMinutes} 分提醒`}</em>
+                <em>
+                  {[c.location, c.teacher].filter(Boolean).join(' · ') ||
+                    `提前 ${c.remindMinutes} 分提醒`}
+                </em>
               </li>
             ))}
           </ul>

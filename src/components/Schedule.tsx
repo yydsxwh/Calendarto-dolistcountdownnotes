@@ -9,9 +9,11 @@ import {
   jsWeekday,
   normalizeClockInput,
 } from '../lib/periods'
+import { TIMETABLE_ACCEPT } from '../lib/file-kinds'
+import { importTimetableAny } from '../lib/import-any'
 import { upcomingExams } from '../lib/reminders'
-import { importTimetableFile, sampleExamCsv, sampleGridCsv } from '../lib/timetable-import'
-import { EXAM_KIND_LABEL, type ExamKind } from '../types'
+import { sampleExamCsv, sampleGridCsv, type TimetableImportResult } from '../lib/timetable-import'
+import { EXAM_KIND_LABEL, type Course, type ExamKind } from '../types'
 
 function TimeInput({
   value,
@@ -56,8 +58,12 @@ export default function Schedule({
   const [startTime, setStartTime] = useState('08:00')
   const [endTime, setEndTime] = useState('09:40')
   const [location, setLocation] = useState('')
+  const [teacher, setTeacher] = useState('')
   const [status, setStatus] = useState('')
   const [importing, setImporting] = useState(false)
+  const [review, setReview] = useState<TimetableImportResult | null>(null)
+  const [previewUrl, setPreviewUrl] = useState('')
+  const [userHint, setUserHint] = useState('')
 
   const [examName, setExamName] = useState('')
   const [examKind, setExamKind] = useState<ExamKind>('final')
@@ -93,9 +99,11 @@ export default function Schedule({
       startTime: start,
       endTime: end,
       location: location || undefined,
+      teacher: teacher || undefined,
       remindMinutes: settings.classDefaultMinutes,
     })
     setName('')
+    setTeacher('')
     setStatus(`已添加 ${name.trim()}（${formatDuration(start, end)}）`)
   }
 
@@ -147,31 +155,65 @@ export default function Schedule({
     setStatus('已弹出考试提醒条。建议同时打开「考试再提前 60 分钟提醒一次」。')
   }
 
+  const applyResult = (result: TimetableImportResult, label: string) => {
+    store.addCourses(result.courses)
+    store.addExams(result.exams)
+    const bits = [
+      result.courses.length ? `${result.courses.length} 门课` : '',
+      result.exams.length ? `${result.exams.length} 场考试` : '',
+    ].filter(Boolean)
+    setStatus(
+      `已从「${label}」导入 ${bits.join('、')}` +
+        (result.warnings.length ? `。提示：${result.warnings.slice(0, 3).join('；')}` : ''),
+    )
+    setReview(null)
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl)
+      setPreviewUrl('')
+    }
+    setTab(result.kind === 'exams' ? 'exams' : 'week')
+  }
+
   const onImport = async (file: File) => {
     setImporting(true)
     setStatus('')
+    if (previewUrl) URL.revokeObjectURL(previewUrl)
+    setPreviewUrl(file.type.startsWith('image/') ? URL.createObjectURL(file) : '')
     try {
-      const result = await importTimetableFile(file, {
-        classRemindMinutes: settings.classDefaultMinutes,
-        examRemindMinutes: settings.examDefaultMinutes,
-      })
-      store.addCourses(result.courses)
-      store.addExams(result.exams)
-      const bits = [
-        result.courses.length ? `${result.courses.length} 门课` : '',
-        result.exams.length ? `${result.exams.length} 场考试` : '',
-      ].filter(Boolean)
-      setStatus(
-        `已从「${file.name}」导入 ${bits.join('、')}` +
-          (result.warnings.length ? `。提示：${result.warnings.slice(0, 3).join('；')}` : ''),
+      const result = await importTimetableAny(
+        file,
+        {
+          classRemindMinutes: settings.classDefaultMinutes,
+          examRemindMinutes: settings.examDefaultMinutes,
+        },
+        userHint,
       )
-      setTab(result.kind === 'exams' ? 'exams' : 'week')
+      if (result.source === 'ai') {
+        setReview(result)
+        setStatus(
+          `AI 已识别 ${result.courses.length} 门课` +
+            (result.exams.length ? `、${result.exams.length} 场考试` : '') +
+            '。请核对课程、地点、时间、老师、时长后再写入课表。',
+        )
+        setTab('import')
+      } else {
+        applyResult(result, file.name)
+      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : '导入失败')
     } finally {
       setImporting(false)
     }
   }
+
+  const patchReviewCourse = (id: string, patch: Partial<Course>) => {
+    setReview((prev) =>
+      prev
+        ? { ...prev, courses: prev.courses.map((c) => (c.id === id ? { ...c, ...patch } : c)) }
+        : prev,
+    )
+  }
+
 
   const downloadSample = (kind: 'grid' | 'exam') => {
     const csv = kind === 'grid' ? sampleGridCsv() : sampleExamCsv()
@@ -189,7 +231,7 @@ export default function Schedule({
       <header className="view-head">
         <h2>超级课程表</h2>
         <p className="muted">
-          导入 Excel / CSV 等表格，自动识别每节课时间和时长；考试单独排期，提前提醒，避免记错错过。
+          导入表格，或把课表照片/PDF 交给站内 AI（与 MathCode 同一套视觉接口）识别课程、地点、时间、老师和时长。
         </p>
       </header>
 
@@ -197,7 +239,7 @@ export default function Schedule({
         {(
           [
             ['week', '周课表'],
-            ['import', '导入表格'],
+            ['import', '导入'],
             ['exams', '考试时间表'],
             ['remind', '提醒'],
           ] as const
@@ -236,6 +278,12 @@ export default function Schedule({
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
               />
+              <input
+                className="input slim"
+                placeholder="老师"
+                value={teacher}
+                onChange={(e) => setTeacher(e.target.value)}
+              />
               <button className="btn primary" onClick={addManual}>
                 加到课表
               </button>
@@ -273,7 +321,10 @@ export default function Schedule({
                           {items.map((c) => (
                             <article key={c.id} className="tt-course" style={{ background: c.color }}>
                               <strong>{c.name}</strong>
-                              <span>{c.location}</span>
+                              <span>
+                                {[c.location, c.teacher].filter(Boolean).join(' · ')}
+                              </span>
+                              <span>{formatDuration(c.startTime, c.endTime)}</span>
                               <button
                                 className="icon-btn light"
                                 onClick={() => store.removeCourse(c.id)}
@@ -296,21 +347,29 @@ export default function Schedule({
 
       {tab === 'import' && (
         <div className="card">
-          <h3>从表格导入</h3>
+          <h3>从表格或图片导入</h3>
           <p className="muted">
-            支持 .xlsx / .xls / .xlsm / .xlsb / .xltx / .ods / .csv / .tsv。Numbers 请先导出
-            xlsx。PDF / Parquet 请先另存为 xlsx 或 csv，才能准确读到每节课时间和时长。
+            表格（xlsx / xls / csv / ods）在浏览器里直接解析。照片、截图、PDF
+            走主站 MathCode 同一套视觉模型，抽出课程、教室、时间、老师，并按开始/结束时间算时长。Word
+            文档由后台抽文本后再识别。
           </p>
           <p className="muted">
-            周课表：第一行列周一到周日，左侧写「第1-2节 08:00-09:40」，格子里写课程、周次、教室。列表：课程、星期、节次或开始/结束时间。
+            周课表：第一行列周一到周日，格子里写课程 / 周次 / 教室 / 老师。拍照请尽量端正、无反光。
           </p>
-          <div className="row wrap">
+          <input
+            className="input"
+            placeholder="可选：给 AI 的提示，例如「这是大二上学期课表，第1-2节是 08:00-09:40」"
+            value={userHint}
+            onChange={(e) => setUserHint(e.target.value)}
+            aria-label="识别提示"
+          />
+          <div className="row wrap" style={{ marginTop: 12 }}>
             <label className="btn primary file-btn">
-              {importing ? '正在识别…' : '选择表格文件'}
+              {importing ? '正在识别…' : '选择表格或图片'}
               <input
                 type="file"
                 hidden
-                accept=".xlsx,.xls,.xlsm,.xlsb,.xltx,.ods,.csv,.tsv,.numbers"
+                accept={TIMETABLE_ACCEPT}
                 disabled={importing}
                 onChange={(e) => {
                   const file = e.target.files?.[0]
@@ -331,6 +390,134 @@ export default function Schedule({
               </button>
             )}
           </div>
+          {previewUrl && (
+            <img className="ocr-preview" src={previewUrl} alt="待识别的课表图片" />
+          )}
+          {review && (
+            <div className="review-box">
+              <h3>核对识别结果</h3>
+              <p className="muted">改错格子后再写入。时长由开始、结束时间自动计算。</p>
+              <div className="review-table-wrap">
+                <table className="review-table">
+                  <thead>
+                    <tr>
+                      <th>课程</th>
+                      <th>星期</th>
+                      <th>开始</th>
+                      <th>结束</th>
+                      <th>时长</th>
+                      <th>地点</th>
+                      <th>老师</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {review.courses.map((c) => (
+                      <tr key={c.id}>
+                        <td>
+                          <input
+                            value={c.name}
+                            onChange={(e) => patchReviewCourse(c.id, { name: e.target.value })}
+                          />
+                        </td>
+                        <td>
+                          <select
+                            value={c.weekday}
+                            onChange={(e) =>
+                              patchReviewCourse(c.id, { weekday: Number(e.target.value) })
+                            }
+                          >
+                            {WEEKDAY_LABELS.map((label, i) => (
+                              <option key={label} value={i + 1}>
+                                {label}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td>
+                          <input
+                            value={c.startTime}
+                            onChange={(e) =>
+                              patchReviewCourse(c.id, {
+                                startTime: normalizeClockInput(e.target.value) || e.target.value,
+                              })
+                            }
+                          />
+                        </td>
+                        <td>
+                          <input
+                            value={c.endTime}
+                            onChange={(e) =>
+                              patchReviewCourse(c.id, {
+                                endTime: normalizeClockInput(e.target.value) || e.target.value,
+                              })
+                            }
+                          />
+                        </td>
+                        <td>{formatDuration(c.startTime, c.endTime)}</td>
+                        <td>
+                          <input
+                            value={c.location || ''}
+                            onChange={(e) =>
+                              patchReviewCourse(c.id, { location: e.target.value || undefined })
+                            }
+                          />
+                        </td>
+                        <td>
+                          <input
+                            value={c.teacher || ''}
+                            onChange={(e) =>
+                              patchReviewCourse(c.id, { teacher: e.target.value || undefined })
+                            }
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {review.exams.length > 0 && (
+                <ul className="mini-list">
+                  {review.exams.map((exam) => (
+                    <li key={exam.id}>
+                      {EXAM_KIND_LABEL[exam.kind]} {exam.name} {exam.date} {exam.startTime}
+                      {exam.endTime ? `-${exam.endTime}` : ''} {exam.location}
+                      <button
+                        className="icon-btn"
+                        onClick={() =>
+                          setReview((prev) =>
+                            prev
+                              ? { ...prev, exams: prev.exams.filter((e) => e.id !== exam.id) }
+                              : prev,
+                          )
+                        }
+                        aria-label="从核对列表去掉这场考试"
+                      >
+                        ✕
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="row wrap">
+                <button className="btn primary" onClick={() => applyResult(review, 'AI 识别')}>
+                  核对无误，写入课表
+                </button>
+                <button
+                  className="btn ghost"
+                  onClick={() => {
+                    setReview(null)
+                    if (previewUrl) {
+                      URL.revokeObjectURL(previewUrl)
+                      setPreviewUrl('')
+                    }
+                    setStatus('已放弃这次识别结果')
+                  }}
+                >
+                  放弃
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

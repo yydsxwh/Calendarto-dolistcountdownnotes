@@ -9,5 +9,13 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    proxy: {
+      // 本地开发把课表识图转到主站 MathCode 同一套视觉接口
+      '/api/days': {
+        target: 'https://www.yydsxwh.com',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
   },
 })

@@ -42,7 +42,11 @@ Standard scripts are defined in `package.json`:
 - App state lives entirely in browser `localStorage` (`kemiao-days-v1`); reset by
   clearing site data, or use the in-app「清空本机数据」.
 - Views are hash routes (`#today` `#calendar` `#todos` `#schedule` `#days` `#notes`).
-- Course/exam import uses SheetJS (`xlsx`). Sample files live in `public/samples/`.
+- Course/exam import uses SheetJS (`xlsx`) for spreadsheets. Photos, screenshots,
+  PDF pages, and Word/text go through `POST /api/days/timetable-ocr` on the main
+  site (same MathCode vision key: `translateApi*` / `MATHCODE_*`, typically
+  通义千问 `qwen-vl-max`). Vite proxies `/api/days` to `https://www.yydsxwh.com`
+  in `npm run dev`. Sample files live in `public/samples/`.
   Parser self-test: `npx --yes tsx src/lib/timetable-import.selftest.ts`.
 - Class/exam reminders use the Notification API plus an in-app banner; they
   fire while the tab is open. Defaults: class 15 minutes, exam 1440 minutes

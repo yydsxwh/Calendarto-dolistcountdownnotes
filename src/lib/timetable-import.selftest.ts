@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as XLSX from 'xlsx'
 import { importTimetableFile } from './timetable-import'
+import { hydrateTimetableOcr } from './timetable-ocr'
 import { collectDueReminders } from './reminders'
 import { defaultReminderSettings } from '../types'
 import { normalizeClockInput } from './periods'
@@ -102,10 +103,38 @@ if (xlsx.courses.length < 2) {
   throw new Error(`xlsx expected >=2 courses, got ${xlsx.courses.length}`)
 }
 
+const ocr = hydrateTimetableOcr(
+  {
+    courses: [
+      {
+        name: '高等数学',
+        weekday: 1,
+        startTime: '08:00',
+        endTime: '09:40',
+        location: '教学楼A101',
+        teacher: '王老师',
+      },
+      { name: '空课', weekday: 9, startTime: '10:00', endTime: '09:00' },
+    ],
+    exams: [{ name: '大学英语', kind: '期中', date: '2026-09-18', startTime: '14:00', endTime: '16:00' }],
+    warnings: [],
+  },
+  defaults,
+)
+const ocrMath = ocr.courses.find((c) => c.name === '高等数学')
+if (!ocrMath || ocrMath.teacher !== '王老师' || ocrMath.location !== '教学楼A101') {
+  throw new Error(`ocr hydrate course failed ${JSON.stringify(ocrMath)}`)
+}
+if (ocr.courses.some((c) => c.name === '空课')) throw new Error('invalid weekday/time should be dropped')
+if (ocr.exams[0]?.kind !== 'midterm' || ocr.exams[0].startTime !== '14:00') {
+  throw new Error(`ocr hydrate exam failed ${JSON.stringify(ocr.exams[0])}`)
+}
+
 console.log(
   'timetable selftest ok',
   `${grid.courses.length} courses`,
   `${exams.exams.length} exams`,
   `math ${math.startTime}-${math.endTime} (${math.weekday})`,
   `xlsx ${xlsx.courses.length}`,
+  `ocr ${ocr.courses.length}/${ocr.exams.length}`,
 )

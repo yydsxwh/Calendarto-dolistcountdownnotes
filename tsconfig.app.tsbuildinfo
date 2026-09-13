@@ -1,1 +1,0 @@
-{"root":["./src/App.tsx","./src/main.tsx","./src/vite-env.d.ts","./src/components/Calendar.tsx","./src/components/Countdowns.tsx","./src/components/Notes.tsx","./src/components/Todos.tsx","./src/hooks/useLocalStorage.ts"],"version":"5.9.3"}

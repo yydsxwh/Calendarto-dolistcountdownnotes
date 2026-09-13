@@ -37,14 +37,14 @@ export interface ReminderSettings {
 }
 
 export const COURSE_COLORS = [
-  '#0ea5e9',
-  '#8b5cf6',
-  '#10b981',
-  '#f59e0b',
-  '#ef4444',
-  '#ec4899',
-  '#14b8a6',
-  '#6366f1',
+  '#2563eb',
+  '#fb7185',
+  '#ff6b35',
+  '#ffb703',
+  '#e11d48',
+  '#38bdf8',
+  '#f472b6',
+  '#1d4ed8',
 ] as const
 
 export const defaultReminderSettings = (): ReminderSettings => ({
@@ -111,12 +111,12 @@ export const NOTE_COLORS = [
 ] as const
 
 export const COUNTDOWN_COLORS = [
-  '#0ea5e9',
-  '#f59e0b',
-  '#ef4444',
-  '#8b5cf6',
-  '#10b981',
-  '#ec4899',
+  '#2563eb',
+  '#ff6b35',
+  '#e11d48',
+  '#fb7185',
+  '#38bdf8',
+  '#ffb703',
 ] as const
 
 export const COUNTDOWN_EMOJIS = ['🎯', '🎂', '✈️', '📚', '💍', '🎓', '🏠', '🎉'] as const

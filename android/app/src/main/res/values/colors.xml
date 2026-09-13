@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="colorPrimary">#2563EB</color>
+    <color name="colorPrimaryDark">#E11D48</color>
+    <color name="colorAccent">#FF6B35</color>
+    <color name="campusPink">#FFF5F7</color>
+    <color name="campusBlue">#2563EB</color>
+    <color name="campusFlame">#FFB703</color>
+</resources>

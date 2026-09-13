@@ -18,7 +18,14 @@
 
 数据存在浏览器 `localStorage`，无需登录。支持导出 / 导入 JSON 备份。换设备或清缓存会丢，云同步留给后续版本。
 
-Windows 客户端和 Android 客户端后续再做；主站 Andyyyds 已有 Capacitor 封装可复用。
+Android 客户端用 Capacitor 包同一套网页：`com.yydsxwh.kemiao.days`，青春校园粉蓝火焰主题，上课/考试走系统本地通知。
+
+```bash
+npm run build:android
+npm run android:apk
+```
+
+生成 `android/app/build/outputs/apk/debug/app-debug.apk`。本机也可在 Android Studio 打开 `android/`。网页版仍走 `/products/days`。
 
 ## 本地开发
 

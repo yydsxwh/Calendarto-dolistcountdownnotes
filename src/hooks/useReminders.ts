@@ -1,6 +1,54 @@
 import { useEffect, useState } from 'react'
-import { collectDueReminders, takeUnfired, type DueReminder } from '../lib/reminders'
+import {
+  collectDueReminders,
+  takeUnfired,
+  upcomingReminderSlots,
+  type DueReminder,
+} from '../lib/reminders'
+import { isNativeApp } from '../lib/native'
 import type { Course, Exam, ReminderSettings } from '../types'
+
+function notifId(key: string): number {
+  let hash = 0
+  for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0
+  return Math.abs(hash) % 2147483646 || 1
+}
+
+async function notifyNative(item: DueReminder) {
+  const { LocalNotifications } = await import('@capacitor/local-notifications')
+  await LocalNotifications.schedule({
+    notifications: [
+      {
+        id: notifId(item.key),
+        title: item.title,
+        body: item.body,
+        schedule: item.fireAt > Date.now() + 2000 ? { at: new Date(item.fireAt) } : undefined,
+        extra: { key: item.key, kind: item.kind },
+      },
+    ],
+  })
+}
+
+async function syncNativeSchedule(courses: Course[], exams: Exam[], settings: ReminderSettings) {
+  const { LocalNotifications } = await import('@capacitor/local-notifications')
+  const pending = await LocalNotifications.getPending()
+  if (pending.notifications.length) {
+    await LocalNotifications.cancel({
+      notifications: pending.notifications.map((n) => ({ id: n.id })),
+    })
+  }
+  const slots = upcomingReminderSlots(courses, exams, settings)
+  if (!slots.length) return
+  await LocalNotifications.schedule({
+    notifications: slots.map((item) => ({
+      id: notifId(item.key),
+      title: item.title,
+      body: item.body,
+      schedule: { at: new Date(item.fireAt) },
+      extra: { key: item.key, kind: item.kind },
+    })),
+  })
+}
 
 export function useReminders(
   courses: Course[],
@@ -17,6 +65,12 @@ export function useReminders(
       if (due.length === 0) return
       const first = due[0]
       setBanner(first)
+      if (isNativeApp()) {
+        due.forEach((item) => {
+          void notifyNative({ ...item, fireAt: Date.now() })
+        })
+        return
+      }
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         due.forEach((item) => {
           try {
@@ -33,7 +87,17 @@ export function useReminders(
     return () => window.clearInterval(id)
   }, [courses, exams, settings])
 
+  useEffect(() => {
+    if (!isNativeApp() || !settings.enabled) return
+    void syncNativeSchedule(courses, exams, settings)
+  }, [courses, exams, settings])
+
   const requestPermission = async () => {
+    if (isNativeApp()) {
+      const { LocalNotifications } = await import('@capacitor/local-notifications')
+      const perm = await LocalNotifications.requestPermissions()
+      return perm.display === 'granted' ? ('granted' as const) : ('denied' as const)
+    }
     if (typeof Notification === 'undefined') return 'denied' as const
     if (Notification.permission === 'granted') return 'granted' as const
     return Notification.requestPermission()
@@ -41,6 +105,10 @@ export function useReminders(
 
   const preview = (item: DueReminder) => {
     setBanner(item)
+    if (isNativeApp()) {
+      void notifyNative({ ...item, fireAt: Date.now() })
+      return
+    }
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       try {
         new Notification(item.title, { body: item.body, tag: item.key })

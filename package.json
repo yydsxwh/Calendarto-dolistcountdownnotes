@@ -10,9 +10,17 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "test:timetable": "npx --yes tsx src/lib/timetable-import.selftest.ts",
-    "deploy:days": "bash scripts/deploy-days.sh"
+    "deploy:days": "bash scripts/deploy-days.sh",
+    "build:android": "tsc -b && vite build --base=./ && npx cap sync android",
+    "android:apk": "bash scripts/build-android-apk.sh"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "pdfjs-dist": "^4.10.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

@@ -7,7 +7,8 @@
 - **今日** — 最近倒数日、今天的课、考试、待办、钉住便签
 - **日历** — 月历圆点（含考试）
 - **待办** — 到期日与优先级
-- **超级课程表** — 周课表；导入 xls/xlsx/csv/ods 等；识别节次时间与时长
+- **超级课程表** — 周课表；导入表格或课表照片（MathCode 视觉接口）
+- **Android** — Capacitor 壳 `com.yydsxwh.kemiao.days`，校园粉蓝火焰 UI，本地通知
 - **考试时间表** — 期中/期末/补考 + 提前提醒
 - **倒数日** — Days Matter 风格大数字卡片，可每年重复
 - **便签** — 彩色便利贴，可钉住
@@ -69,3 +70,10 @@ Standard scripts are defined in `package.json`:
 - Do not block local setup on GitHub write access to `yydsxwh/Andyyyds`.
   That repo access was skipped; this product repo plus `npm run dev` is
   enough. Live listing/app were already published over SSH.
+- Android: `npm run build:android` then `npm run android:apk`. The APK
+  bundles `dist/` with `base: ./`. Native OCR posts to
+  `https://www.yydsxwh.com/api/days/timetable-ocr`. Class/exam reminders
+  use `@capacitor/local-notifications` so they can fire in the background.
+  UI theme is campus pink/blue/flame (`#fff5f7`, `#2563eb`, `#fb7185`,
+  `#ff6b35`, `#ffb703`, `#e11d48`). Do not commit `android/local.properties`
+  or built APKs.

@@ -14,6 +14,7 @@ import {
   parseWeekday,
 } from './periods'
 import type { TimetableImportResult } from './timetable-import'
+import { timetableOcrUrl } from './native'
 import { uid } from './store'
 
 export type OcrCourseDraft = {
@@ -44,7 +45,9 @@ export type TimetableOcrPayload = {
   error?: string
 }
 
-const OCR_PATH = '/api/days/timetable-ocr'
+function ocrEndpoint(): string {
+  return timetableOcrUrl()
+}
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -179,7 +182,7 @@ export async function recognizeTimetableFile(
   form.append('file', file, file.name)
   if (userHint.trim()) form.append('userHint', userHint.trim())
 
-  const res = await fetch(OCR_PATH, { method: 'POST', body: form })
+  const res = await fetch(ocrEndpoint(), { method: 'POST', body: form })
   let payload: TimetableOcrPayload = {}
   try {
     payload = (await res.json()) as TimetableOcrPayload

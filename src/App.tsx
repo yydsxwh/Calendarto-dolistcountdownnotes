@@ -2,15 +2,18 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import CalendarView from './components/CalendarView'
 import Countdowns from './components/Countdowns'
 import Notes from './components/Notes'
+import Schedule from './components/Schedule'
 import Today from './components/Today'
 import Todos from './components/Todos'
 import { useAppStore } from './hooks/useAppStore'
+import { useReminders } from './hooks/useReminders'
 import type { View } from './types'
 
 const VIEWS: { id: View; label: string }[] = [
   { id: 'today', label: '今日' },
   { id: 'calendar', label: '日历' },
   { id: 'todos', label: '待办' },
+  { id: 'schedule', label: '课表' },
   { id: 'days', label: '倒数日' },
   { id: 'notes', label: '便签' },
 ]
@@ -22,6 +25,11 @@ function parseView(): View {
 
 export default function App() {
   const store = useAppStore()
+  const reminders = useReminders(
+    store.data.courses,
+    store.data.exams,
+    store.data.reminderSettings,
+  )
   const [view, setView] = useState<View>(parseView)
   const [query, setQuery] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -47,6 +55,15 @@ export default function App() {
       notes: store.data.notes.filter(
         (n) => n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q),
       ),
+      courses: store.data.courses.filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          (c.location || '').toLowerCase().includes(q) ||
+          (c.teacher || '').toLowerCase().includes(q),
+      ),
+      exams: store.data.exams.filter(
+        (e) => e.name.toLowerCase().includes(q) || (e.location || '').toLowerCase().includes(q),
+      ),
     }
   }, [query, store.data])
 
@@ -57,7 +74,7 @@ export default function App() {
           <span className="mark">日</span>
           <div>
             <strong>颗秒日事</strong>
-            <p>日历 · 待办 · 倒数日 · 便签</p>
+            <p>日历 · 待办 · 课表 · 倒数日 · 便签</p>
           </div>
         </div>
         <nav className="tabs desktop-nav" aria-label="功能">
@@ -74,7 +91,7 @@ export default function App() {
         <div className="top-actions">
           <input
             className="input search"
-            placeholder="搜索待办、倒数日、便签"
+            placeholder="搜索待办、课表、考试、便签"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             aria-label="搜索"
@@ -127,13 +144,30 @@ export default function App() {
         />
       </header>
 
+      {reminders.banner && (
+        <div className={`remind-banner ${reminders.banner.kind}`} role="status">
+          <div>
+            <strong>{reminders.banner.title}</strong>
+            <p>{reminders.banner.body}</p>
+          </div>
+          <button className="btn ghost" onClick={reminders.dismiss}>
+            知道了
+          </button>
+        </div>
+      )}
+
       <main className="main">
         {hits ? (
           <section className="view">
             <header className="view-head">
               <h2>搜索「{query}」</h2>
               <p className="muted">
-                {hits.todos.length + hits.countdowns.length + hits.notes.length} 条结果
+                {hits.todos.length +
+                  hits.countdowns.length +
+                  hits.notes.length +
+                  hits.courses.length +
+                  hits.exams.length}{' '}
+                条结果
               </p>
             </header>
             <div className="card">
@@ -165,6 +199,24 @@ export default function App() {
                   <li key={n.id}>{n.title || n.body}</li>
                 ))}
               </ul>
+              <h3>课程</h3>
+              <ul className="mini-list">
+                {hits.courses.length === 0 && <li className="empty-inline">无匹配课程</li>}
+                {hits.courses.map((c) => (
+                  <li key={c.id}>
+                    {c.name} · {c.startTime}-{c.endTime} {c.location}
+                  </li>
+                ))}
+              </ul>
+              <h3>考试</h3>
+              <ul className="mini-list">
+                {hits.exams.length === 0 && <li className="empty-inline">无匹配考试</li>}
+                {hits.exams.map((e) => (
+                  <li key={e.id}>
+                    {e.name} · {e.date} {e.startTime}
+                  </li>
+                ))}
+              </ul>
             </div>
           </section>
         ) : view === 'today' ? (
@@ -173,6 +225,8 @@ export default function App() {
           <CalendarView store={store} />
         ) : view === 'todos' ? (
           <Todos store={store} />
+        ) : view === 'schedule' ? (
+          <Schedule store={store} requestPermission={reminders.requestPermission} />
         ) : view === 'days' ? (
           <Countdowns store={store} />
         ) : (

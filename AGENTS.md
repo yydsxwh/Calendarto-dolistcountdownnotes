@@ -4,9 +4,11 @@
 
 网页产品 **颗秒日事**：日历、待办、倒数日、便签四合一，本地优先。
 
-- **今日** — 最近倒数日、今天/逾期待办、钉住便签
-- **日历** — 月历圆点，点日期可给这一天加待办 / 倒数日 / 便签
+- **今日** — 最近倒数日、今天的课、考试、待办、钉住便签
+- **日历** — 月历圆点（含考试）
 - **待办** — 到期日与优先级
+- **超级课程表** — 周课表；导入 xls/xlsx/csv/ods 等；识别节次时间与时长
+- **考试时间表** — 期中/期末/补考 + 提前提醒
 - **倒数日** — Days Matter 风格大数字卡片，可每年重复
 - **便签** — 彩色便利贴，可钉住
 
@@ -39,7 +41,12 @@ Standard scripts are defined in `package.json`:
   features end to end.
 - App state lives entirely in browser `localStorage` (`kemiao-days-v1`); reset by
   clearing site data, or use the in-app「清空本机数据」.
-- Views are hash routes (`#today` `#calendar` `#todos` `#days` `#notes`).
+- Views are hash routes (`#today` `#calendar` `#todos` `#schedule` `#days` `#notes`).
+- Course/exam import uses SheetJS (`xlsx`). Sample files live in `public/samples/`.
+  Parser self-test: `npx --yes tsx src/lib/timetable-import.selftest.ts`.
+- Class/exam reminders use the Notification API plus an in-app banner; they
+  fire while the tab is open. Defaults: class 15 minutes, exam 1440 minutes
+  and optionally again at 60 minutes.
 - Production subpath build: `npx vite build --base=/products/days/` then
   `scripts/deploy-days.sh`.
 - Live URLs: `https://www.yydsxwh.com/products` (card) and

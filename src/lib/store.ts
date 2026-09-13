@@ -1,12 +1,18 @@
 import {
+  COURSE_COLORS,
   COUNTDOWN_COLORS,
   COUNTDOWN_EMOJIS,
   NOTE_COLORS,
   STORAGE_KEY,
+  defaultReminderSettings,
   type AppData,
   type Countdown,
+  type Course,
+  type Exam,
+  type ExamKind,
   type Note,
   type Priority,
+  type ReminderSettings,
   type Todo,
 } from '../types'
 
@@ -14,6 +20,9 @@ export const emptyData = (): AppData => ({
   todos: [],
   countdowns: [],
   notes: [],
+  courses: [],
+  exams: [],
+  reminderSettings: defaultReminderSettings(),
 })
 
 export function loadData(): AppData {
@@ -26,6 +35,12 @@ export function loadData(): AppData {
       todos: Array.isArray(parsed.todos) ? parsed.todos : [],
       countdowns: Array.isArray(parsed.countdowns) ? parsed.countdowns : [],
       notes: Array.isArray(parsed.notes) ? parsed.notes : [],
+      courses: Array.isArray(parsed.courses) ? parsed.courses : [],
+      exams: Array.isArray(parsed.exams) ? parsed.exams : [],
+      reminderSettings: {
+        ...defaultReminderSettings(),
+        ...(parsed.reminderSettings as ReminderSettings | undefined),
+      },
     }
   } catch {
     return emptyData()
@@ -99,5 +114,48 @@ export function parseImport(text: string): AppData {
     todos: Array.isArray(parsed.todos) ? parsed.todos : [],
     countdowns: Array.isArray(parsed.countdowns) ? parsed.countdowns : [],
     notes: Array.isArray(parsed.notes) ? parsed.notes : [],
+    courses: Array.isArray(parsed.courses) ? parsed.courses : [],
+    exams: Array.isArray(parsed.exams) ? parsed.exams : [],
+    reminderSettings: {
+      ...defaultReminderSettings(),
+      ...(parsed.reminderSettings as ReminderSettings | undefined),
+    },
+  }
+}
+
+export function createCourse(
+  name: string,
+  extras: Partial<Omit<Course, 'id' | 'name' | 'createdAt'>> = {},
+): Course {
+  return {
+    id: uid(),
+    name: name.trim(),
+    weekday: extras.weekday ?? 1,
+    startTime: extras.startTime ?? '08:00',
+    endTime: extras.endTime ?? '09:40',
+    location: extras.location,
+    teacher: extras.teacher,
+    weeks: extras.weeks,
+    color: extras.color ?? COURSE_COLORS[0],
+    remindMinutes: extras.remindMinutes ?? 15,
+    createdAt: Date.now(),
+  }
+}
+
+export function createExam(
+  name: string,
+  extras: Partial<Omit<Exam, 'id' | 'name' | 'createdAt'>> = {},
+): Exam {
+  return {
+    id: uid(),
+    name: name.trim(),
+    kind: (extras.kind as ExamKind | undefined) ?? 'final',
+    date: extras.date ?? '',
+    startTime: extras.startTime ?? '09:00',
+    endTime: extras.endTime,
+    location: extras.location,
+    seat: extras.seat,
+    remindMinutes: extras.remindMinutes ?? 1440,
+    createdAt: Date.now(),
   }
 }

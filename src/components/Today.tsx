@@ -1,4 +1,7 @@
 import { daysUntil, formatLong, nextOccurrence, startOfToday, toISODate } from '../lib/dates'
+import { jsWeekday } from '../lib/periods'
+import { upcomingClasses, upcomingExams } from '../lib/reminders'
+import { EXAM_KIND_LABEL } from '../types'
 import type { AppStore } from '../hooks/useAppStore'
 import type { View } from '../types'
 
@@ -26,6 +29,8 @@ export default function Today({
     .slice(0, 3)
 
   const pinned = store.data.notes.filter((n) => n.pinned).slice(0, 4)
+  const todayClasses = upcomingClasses(store.data.courses, jsWeekday(today))
+  const nextExams = upcomingExams(store.data.exams, iso).slice(0, 4)
 
   return (
     <section className="view">
@@ -33,8 +38,8 @@ export default function Today({
         <p className="kicker">{hello}</p>
         <h2>{formatLong(today)}</h2>
         <p className="muted">
-          {store.stats.remaining} 件待办 · {store.stats.countdownCount} 个倒数日 ·{' '}
-          {store.stats.noteCount} 条便签
+          {store.stats.remaining} 件待办 · {store.stats.courseCount} 节课 ·{' '}
+          {store.stats.examCount} 场考试 · {store.stats.noteCount} 条便签
         </p>
       </header>
 
@@ -66,6 +71,56 @@ export default function Today({
       )}
 
       <div className="dash-grid">
+        <article className="card">
+          <div className="card-head">
+            <h3>今天的课</h3>
+            <button className="link" onClick={() => onOpen('schedule')}>
+              课程表
+            </button>
+          </div>
+          {todayClasses.length === 0 && (
+            <p className="empty-inline">今天没有课。导入课表后会按星期自动出现。</p>
+          )}
+          <ul className="mini-list">
+            {todayClasses.map((c) => (
+              <li key={c.id}>
+                <span>
+                  {c.startTime}-{c.endTime} {c.name}
+                </span>
+                <em>{c.location || `提前 ${c.remindMinutes} 分提醒`}</em>
+              </li>
+            ))}
+          </ul>
+        </article>
+
+        <article className="card">
+          <div className="card-head">
+            <h3>考试时间表</h3>
+            <button className="link" onClick={() => onOpen('schedule')}>
+              全部考试
+            </button>
+          </div>
+          {nextExams.length === 0 && (
+            <p className="empty-inline">还没登记考试。期中期末时间记错会错过，请尽早导入。</p>
+          )}
+          <ul className="mini-list">
+            {nextExams.map((e) => {
+              const d = daysUntil(e.date)
+              return (
+                <li key={e.id}>
+                  <span>
+                    {EXAM_KIND_LABEL[e.kind]} {e.name}
+                  </span>
+                  <em>
+                    {e.date} {e.startTime}
+                    {d === 0 ? ' · 今天开考' : d > 0 ? ` · ${d} 天后` : ' · 已过'}
+                  </em>
+                </li>
+              )
+            })}
+          </ul>
+        </article>
+
         <article className="card">
           <div className="card-head">
             <h3>今天要做</h3>

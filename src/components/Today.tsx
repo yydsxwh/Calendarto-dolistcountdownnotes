@@ -1,6 +1,7 @@
 import { daysUntil, formatLong, nextOccurrence, startOfToday, toISODate } from '../lib/dates'
 import { jsWeekday } from '../lib/periods'
 import { upcomingClasses, upcomingExams } from '../lib/reminders'
+import { courseInTeachingWeek, mondayOf, teachingWeekNumber } from '../lib/week-grid'
 import { EXAM_KIND_LABEL } from '../types'
 import type { AppStore } from '../hooks/useAppStore'
 import type { View } from '../types'
@@ -29,7 +30,10 @@ export default function Today({
     .slice(0, 3)
 
   const pinned = store.data.notes.filter((n) => n.pinned).slice(0, 4)
-  const todayClasses = upcomingClasses(store.data.courses, jsWeekday(today))
+  const weekNo = teachingWeekNumber(mondayOf(today), store.data.termStart)
+  const todayClasses = upcomingClasses(store.data.courses, jsWeekday(today)).filter((c) =>
+    courseInTeachingWeek(c, weekNo),
+  )
   const nextExams = upcomingExams(store.data.exams, iso).slice(0, 4)
 
   return (

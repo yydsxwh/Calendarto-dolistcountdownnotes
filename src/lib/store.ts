@@ -23,6 +23,7 @@ export const emptyData = (): AppData => ({
   courses: [],
   exams: [],
   reminderSettings: defaultReminderSettings(),
+  termStart: undefined,
 })
 
 export function loadData(): AppData {
@@ -41,6 +42,7 @@ export function loadData(): AppData {
         ...defaultReminderSettings(),
         ...(parsed.reminderSettings as ReminderSettings | undefined),
       },
+      termStart: typeof parsed.termStart === 'string' && parsed.termStart ? parsed.termStart : undefined,
     }
   } catch {
     return emptyData()
@@ -120,6 +122,7 @@ export function parseImport(text: string): AppData {
       ...defaultReminderSettings(),
       ...(parsed.reminderSettings as ReminderSettings | undefined),
     },
+    termStart: typeof parsed.termStart === 'string' && parsed.termStart ? parsed.termStart : undefined,
   }
 }
 

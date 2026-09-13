@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { AppStore } from '../hooks/useAppStore'
 import type { DueReminder } from '../lib/reminders'
 import { daysUntil, toISODate, startOfToday } from '../lib/dates'
@@ -6,14 +6,21 @@ import {
   WEEKDAY_LABELS,
   durationMinutes,
   formatDuration,
-  jsWeekday,
   normalizeClockInput,
 } from '../lib/periods'
 import { TIMETABLE_ACCEPT } from '../lib/file-kinds'
 import { importTimetableAny } from '../lib/import-any'
 import { upcomingExams } from '../lib/reminders'
 import { sampleExamCsv, sampleGridCsv, type TimetableImportResult } from '../lib/timetable-import'
+import {
+  courseInTeachingWeek,
+  mondayOf,
+  shiftWeek,
+  teachingWeekNumber,
+  weekRangeLabel,
+} from '../lib/week-grid'
 import { EXAM_KIND_LABEL, type Course, type ExamKind } from '../types'
+import WeekTimetable from './WeekTimetable'
 
 function TimeInput({
   value,
@@ -64,6 +71,10 @@ export default function Schedule({
   const [review, setReview] = useState<TimetableImportResult | null>(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [userHint, setUserHint] = useState('')
+  const [weekMonday, setWeekMonday] = useState(() => mondayOf(new Date()))
+  const [now, setNow] = useState(() => new Date())
+  const [selectedId, setSelectedId] = useState<string>()
+  const [showAdd, setShowAdd] = useState(false)
 
   const [examName, setExamName] = useState('')
   const [examKind, setExamKind] = useState<ExamKind>('final')
@@ -72,15 +83,20 @@ export default function Schedule({
   const [examEnd, setExamEnd] = useState('11:00')
   const [examLoc, setExamLoc] = useState('')
 
-  const todayWd = jsWeekday()
   const todayISO = toISODate(startOfToday())
   const settings = store.data.reminderSettings
+  const thisMonday = mondayOf(now)
+  const weekNo = teachingWeekNumber(weekMonday, store.data.termStart)
+  const visibleCourses = useMemo(
+    () => store.data.courses.filter((c) => courseInTeachingWeek(c, weekNo)),
+    [store.data.courses, weekNo],
+  )
+  const selected = store.data.courses.find((c) => c.id === selectedId)
 
-  const slots = useMemo(() => {
-    const map = new Map<string, { start: string; end: string }>()
-    store.data.courses.forEach((c) => map.set(`${c.startTime}-${c.endTime}`, { start: c.startTime, end: c.endTime }))
-    return [...map.values()].sort((a, b) => a.start.localeCompare(b.start))
-  }, [store.data.courses])
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(new Date()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const examsSoon = upcomingExams(store.data.exams, todayISO)
 
@@ -231,7 +247,7 @@ export default function Schedule({
       <header className="view-head">
         <h2>超级课程表</h2>
         <p className="muted">
-          导入表格，或把课表照片/PDF 交给站内 AI（与 MathCode 同一套视觉接口）识别课程、地点、时间、老师和时长。
+          周视图和超级课程表一样：横轴周一到周日，纵轴一天从早到晚（默认 06:00–22:00）。点空格子加课，点色块看详情。
         </p>
       </header>
 
@@ -254,93 +270,146 @@ export default function Schedule({
 
       {tab === 'week' && (
         <>
-          <div className="card">
+          <div className="card week-toolbar">
             <div className="row wrap">
-              <input
-                className="input"
-                placeholder="课程名，例如「高等数学」"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                aria-label="课程名"
-              />
-              <select className="input slim" value={weekday} onChange={(e) => setWeekday(Number(e.target.value))}>
-                {WEEKDAY_LABELS.map((label, i) => (
-                  <option key={label} value={i + 1}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-              <TimeInput value={startTime} onChange={setStartTime} label="开始时间" />
-              <TimeInput value={endTime} onChange={setEndTime} label="结束时间" />
-              <input
-                className="input slim"
-                placeholder="教室"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-              />
-              <input
-                className="input slim"
-                placeholder="老师"
-                value={teacher}
-                onChange={(e) => setTeacher(e.target.value)}
-              />
-              <button className="btn primary" onClick={addManual}>
-                加到课表
+              <button className="btn ghost" onClick={() => setWeekMonday((d) => shiftWeek(d, -1))}>
+                上一周
+              </button>
+              <div className="week-toolbar-title">
+                <strong>
+                  {weekNo != null ? `第 ${weekNo} 周` : '周课表'}
+                  {weekMonday.getTime() === thisMonday.getTime() ? ' · 本周' : ''}
+                </strong>
+                <span className="muted">{weekRangeLabel(weekMonday)}</span>
+              </div>
+              <button className="btn ghost" onClick={() => setWeekMonday((d) => shiftWeek(d, 1))}>
+                下一周
+              </button>
+              <button className="btn ghost" onClick={() => setWeekMonday(thisMonday)}>
+                回到本周
               </button>
             </div>
+            <div className="row wrap" style={{ marginTop: 10 }}>
+              <label className="week-term">
+                开学周一
+                <input
+                  className="input slim"
+                  type="date"
+                  value={store.data.termStart || ''}
+                  onChange={(e) => store.setTermStart(e.target.value || undefined)}
+                />
+              </label>
+              <button className="btn ghost" onClick={() => setShowAdd((v) => !v)}>
+                {showAdd ? '收起加课' : '加一节课'}
+              </button>
+              {store.data.courses.length === 0 && (
+                <button
+                  className="btn ghost"
+                  onClick={() => {
+                    void (async () => {
+                      const res = await fetch(`${import.meta.env.BASE_URL}samples/course-grid.csv`)
+                      const blob = await res.blob()
+                      await onImport(new File([blob], 'course-grid.csv', { type: 'text/csv' }))
+                    })()
+                  }}
+                >
+                  载入示例课表
+                </button>
+              )}
+            </div>
             <p className="muted">
-              当前这节时长 {formatDuration(startTime, endTime)}（{durationMinutes(startTime, endTime)} 分钟）
+              横轴是周一到周日，纵轴是当天时间表。没填开学周一就显示全部课程；填了以后按「第几周 / 单双周」过滤。
             </p>
           </div>
 
-          <div className="tt-wrap card">
-            {store.data.courses.length === 0 ? (
-              <p className="empty">还没有课。先导入教务处表格，或手动加一节。</p>
-            ) : (
-              <div className="tt-grid" style={{ gridTemplateColumns: `88px repeat(7, minmax(92px, 1fr))` }}>
-                <div className="tt-h">节次</div>
-                {WEEKDAY_LABELS.map((label, i) => (
-                  <div key={label} className={`tt-h ${i + 1 === todayWd ? 'is-today' : ''}`}>
-                    {label}
-                  </div>
-                ))}
-                {slots.map((slot) => (
-                  <div key={`${slot.start}-${slot.end}`} className="tt-contents">
-                    <div className="tt-time">
-                      <strong>{slot.start}</strong>
-                      <span>{slot.end}</span>
-                      <em>{formatDuration(slot.start, slot.end)}</em>
-                    </div>
-                    {WEEKDAY_LABELS.map((_, i) => {
-                      const wd = i + 1
-                      const items = store.data.courses.filter(
-                        (c) => c.weekday === wd && c.startTime === slot.start && c.endTime === slot.end,
-                      )
-                      return (
-                        <div key={wd} className={`tt-cell ${wd === todayWd ? 'is-today' : ''}`}>
-                          {items.map((c) => (
-                            <article key={c.id} className="tt-course" style={{ background: c.color }}>
-                              <strong>{c.name}</strong>
-                              <span>
-                                {[c.location, c.teacher].filter(Boolean).join(' · ')}
-                              </span>
-                              <span>{formatDuration(c.startTime, c.endTime)}</span>
-                              <button
-                                className="icon-btn light"
-                                onClick={() => store.removeCourse(c.id)}
-                                aria-label="删除课程"
-                              >
-                                ✕
-                              </button>
-                            </article>
-                          ))}
-                        </div>
-                      )
-                    })}
-                  </div>
-                ))}
+          {showAdd && (
+            <div className="card">
+              <div className="row wrap">
+                <input
+                  className="input"
+                  placeholder="课程名，例如「高等数学」"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  aria-label="课程名"
+                />
+                <select className="input slim" value={weekday} onChange={(e) => setWeekday(Number(e.target.value))}>
+                  {WEEKDAY_LABELS.map((label, i) => (
+                    <option key={label} value={i + 1}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <TimeInput value={startTime} onChange={setStartTime} label="开始时间" />
+                <TimeInput value={endTime} onChange={setEndTime} label="结束时间" />
+                <input
+                  className="input slim"
+                  placeholder="教室"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                />
+                <input
+                  className="input slim"
+                  placeholder="老师"
+                  value={teacher}
+                  onChange={(e) => setTeacher(e.target.value)}
+                />
+                <button className="btn primary" onClick={addManual}>
+                  加到课表
+                </button>
               </div>
-            )}
+              <p className="muted">
+                当前这节时长 {formatDuration(startTime, endTime)}（{durationMinutes(startTime, endTime)} 分钟）
+              </p>
+            </div>
+          )}
+
+          {selected && (
+            <div className="card week-detail">
+              <div>
+                <p className="kicker">
+                  {WEEKDAY_LABELS[selected.weekday - 1]} {selected.startTime}-{selected.endTime}
+                </p>
+                <h3>{selected.name}</h3>
+                <p className="muted">
+                  {[selected.location, selected.teacher, selected.weeks, formatDuration(selected.startTime, selected.endTime)]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </p>
+              </div>
+              <div className="row wrap">
+                <button
+                  className="btn ghost"
+                  onClick={() => {
+                    store.removeCourse(selected.id)
+                    setSelectedId(undefined)
+                  }}
+                >
+                  删除这节
+                </button>
+                <button className="btn ghost" onClick={() => setSelectedId(undefined)}>
+                  关闭
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="tt-wrap card">
+            <WeekTimetable
+              courses={visibleCourses}
+              exams={store.data.exams}
+              monday={weekMonday}
+              now={now}
+              selectedId={selectedId}
+              onSelectCourse={(course) => setSelectedId(course.id)}
+              onSelectSlot={(slot) => {
+                setWeekday(slot.weekday)
+                setStartTime(slot.startTime)
+                setEndTime(slot.endTime)
+                setShowAdd(true)
+                setSelectedId(undefined)
+                setStatus(`已选 ${WEEKDAY_LABELS[slot.weekday - 1]} ${slot.startTime}-${slot.endTime}，补课程名后点「加到课表」`)
+              }}
+            />
           </div>
         </>
       )}

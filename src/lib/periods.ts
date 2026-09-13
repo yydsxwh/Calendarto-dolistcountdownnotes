@@ -53,6 +53,15 @@ export function minutesOf(hhmm: string): number {
   return h * 60 + m
 }
 
+export function clockFromMinutes(total: number): string {
+  const wrapped = ((total % (24 * 60)) + 24 * 60) % (24 * 60)
+  return padTime(Math.floor(wrapped / 60), wrapped % 60)
+}
+
+export function addClockMinutes(hhmm: string, delta: number): string {
+  return clockFromMinutes(minutesOf(hhmm) + delta)
+}
+
 export function durationMinutes(start: string, end: string): number {
   return Math.max(0, minutesOf(end) - minutesOf(start))
 }

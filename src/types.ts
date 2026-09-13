@@ -99,6 +99,8 @@ export interface AppData {
   courses: Course[]
   exams: Exam[]
   reminderSettings: ReminderSettings
+  /** 本学期第 1 周的周一，用来算「第几周」并过滤课表周次 */
+  termStart?: string
 }
 
 export const NOTE_COLORS = [

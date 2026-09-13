@@ -48,7 +48,11 @@ Standard scripts are defined in `package.json`:
   site (same MathCode vision key: `translateApi*` / `MATHCODE_*`, typically
   通义千问 `qwen-vl-max`). Vite proxies `/api/days` to `https://www.yydsxwh.com`
   in `npm run dev`. Sample files live in `public/samples/`.
-  Parser self-test: `npx --yes tsx src/lib/timetable-import.selftest.ts`.
+  Parser self-test: `npm run test:timetable` (import + week-grid layout).
+  The `#schedule` week view is a Super Course Schedule-style grid:
+  columns Monday–Sunday, rows 06:00–22:00 (expands if a class is
+  outside). Click an empty cell to add; set `termStart` to filter by
+  teaching week / 单双周.
 - Class/exam reminders use the Notification API plus an in-app banner; they
   fire while the tab is open. Defaults: class 15 minutes, exam 1440 minutes
   and optionally again at 60 minutes.

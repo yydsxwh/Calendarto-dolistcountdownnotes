@@ -175,6 +175,13 @@ export function useAppStore() {
     }))
   }, [])
 
+  const setTermStart = useCallback((termStart?: string) => {
+    setData((prev) => ({
+      ...prev,
+      termStart: termStart || undefined,
+    }))
+  }, [])
+
   const clearAll = useCallback(() => setData(emptyData()), [])
 
   const downloadBackup = useCallback(() => {
@@ -239,6 +246,7 @@ export function useAppStore() {
     updateExam,
     removeExam,
     updateReminderSettings,
+    setTermStart,
     clearAll,
     downloadBackup,
     importBackup,

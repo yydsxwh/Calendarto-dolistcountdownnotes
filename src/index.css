@@ -853,6 +853,15 @@ select.input {
 .week-tt-course span,
 .week-tt-exam span {
   display: block;
+  overflow: hidden;
+}
+
+.week-tt-course strong,
+.week-tt-exam strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
 }
 
 .week-tt-course span,
@@ -1003,5 +1012,21 @@ select.input {
 
   .brand p {
     font-size: 10px;
+  }
+
+  .week-tt {
+    min-width: 0;
+  }
+
+  .week-tt-head,
+  .week-tt-body {
+    grid-template-columns: 36px repeat(7, minmax(0, 1fr));
+  }
+
+  .week-tt-course,
+  .week-tt-exam {
+    font-size: 10px;
+    padding: 3px 3px;
+    border-radius: 6px;
   }
 }

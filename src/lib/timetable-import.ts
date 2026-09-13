@@ -109,8 +109,8 @@ function parseCellCourse(
   const nameParts: string[] = []
 
   for (const line of lines) {
-    if (/周/.test(line) && /\d/.test(line) && line.length <= 20) {
-      weeks = line
+    if ((/单周|双周/.test(line) || (/周/.test(line) && /\d/.test(line))) && line.length <= 24) {
+      weeks = weeks ? `${weeks} ${line}` : line
       continue
     }
     if (/教室|教学楼|号楼|实验|机房|[A-Za-z]?\d{2,4}/.test(line) && line.length <= 24) {

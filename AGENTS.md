@@ -52,7 +52,13 @@ Standard scripts are defined in `package.json`:
   Photo import resizes to JPEG ≤1600px before `POST /api/days/timetable-ocr`
   (phone originals often fail the first vision call). HEIC is rejected with
   a “导出 JPG” hint. Hydrate also accepts `weekday: 周一` and
-  `startTime: 第1-2节`. Hidden dawn rows expand from a ▾ chip in the
+  `startTime: 第1-2节`. Prefer `weekdayLabel` / `dayHeaders+slots.cells`
+  over a weekday number — models often treat the 节次 column as weekday 1
+  and shift 星期一 onto Tuesday. Packed rooms like `教一1506/1-2节/1-16周`
+  are split into location + weeks (keep 单周/双周). Live OCR changes are
+  patched into `.next/server/app/api/days/timetable-ocr/route.js` plus
+  `packages/mathcode/lib/timetable-ocr.ts`; do not full-rebuild Next on
+  this 3.4GB box while PM2 is up. Hidden dawn rows expand from a ▾ chip in the
   时间 header — do not put 隐藏 on weekday columns. Course import lives
   on 周课表; exam import lives on 考试时间表 (table by date). Import
   infers class periods from printed clocks (e.g. 08:30) and hides hours

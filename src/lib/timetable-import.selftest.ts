@@ -4,6 +4,12 @@ import { fileURLToPath } from 'node:url'
 import * as XLSX from 'xlsx'
 import { importTimetableFile } from './timetable-import'
 import { hiddenHoursAroundCourses, inferClassPeriods } from './period-infer'
+import {
+  flattenTimetableOcrPayload,
+  parseOcrCellText,
+  resolveOcrWeekday,
+  splitPackedLocation,
+} from './ocr-flatten'
 import { hydrateTimetableOcr, remapZeroBasedWeekdays } from './timetable-ocr'
 import { collectDueReminders, upcomingReminderSlots } from './reminders'
 import { defaultReminderSettings } from '../types'
@@ -208,6 +214,150 @@ if (!nativeSlots.some((s) => s.kind === 'exam' && s.title.includes('高等数学
   throw new Error(`android reminder slots missing exam ${JSON.stringify(nativeSlots)}`)
 }
 
+const labelWins = resolveOcrWeekday({ weekday: 2, weekdayLabel: '星期一' })
+if (labelWins !== 1) throw new Error(`weekdayLabel should beat column index, got ${labelWins}`)
+const packed = splitPackedLocation('教一1506/1-2节/1-16周/单周')
+if (packed.location !== '教一1506' || packed.weeks !== '1-16周 单周') {
+  throw new Error(`packed location split failed ${JSON.stringify(packed)}`)
+}
+
+const shifted = hydrateTimetableOcr(
+  {
+    courses: [
+      {
+        name: '微积分C II',
+        weekday: 2,
+        weekdayLabel: '星期一',
+        startTime: '08:00',
+        endTime: '09:30',
+        location: '教一1506/1-2节/1-16周',
+        teacher: '贾鲁军 讲师',
+      },
+      {
+        name: '英语国家社会与文化 LAUGGALIS ALEXANDER VICTOR',
+        weekday: 3,
+        weekdayLabel: '星期二',
+        startTime: '10:00',
+        endTime: '11:30',
+        location: '教二2311/3-4节/1-16周/单周',
+      },
+    ],
+  },
+  defaults,
+)
+const calc = shifted.courses.find((c) => c.name.includes('微积分'))
+const english = shifted.courses.find((c) => c.name.includes('英语'))
+if (!calc || calc.weekday !== 1 || calc.location !== '教一1506' || calc.weeks !== '1-16周') {
+  throw new Error(`label+packed hydrate failed ${JSON.stringify(calc)}`)
+}
+if (
+  !english ||
+  english.weekday !== 2 ||
+  english.teacher !== 'LAUGGALIS ALEXANDER VICTOR' ||
+  !english.weeks?.includes('单周')
+) {
+  throw new Error(`english teacher/weeks hydrate failed ${JSON.stringify(english)}`)
+}
+
+const gridOcr = hydrateTimetableOcr(
+  {
+    dayHeaders: ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'],
+    slots: [
+      {
+        label: '第一大节',
+        startTime: '08:00',
+        endTime: '09:30',
+        cells: [
+          '微积分C II\n贾鲁军 讲师\n教一1506/1-2节/1-16周',
+          '',
+          '瑜伽\n秦迪 讲师\n世纪馆南203/1-2节/1-16周',
+          '',
+          '',
+          '',
+          '',
+        ],
+      },
+    ],
+    courses: [
+      { name: '微积分C II', weekday: 2, startTime: '08:00', endTime: '09:30' },
+    ],
+  },
+  defaults,
+)
+const gridCalc = gridOcr.courses.find((c) => c.name.includes('微积分'))
+const yoga = gridOcr.courses.find((c) => c.name.includes('瑜伽'))
+if (!gridCalc || gridCalc.weekday !== 1 || gridCalc.teacher !== '贾鲁军') {
+  throw new Error(`grid flatten Monday failed ${JSON.stringify(gridCalc)}`)
+}
+if (!yoga || yoga.weekday !== 3 || yoga.location !== '世纪馆南203') {
+  throw new Error(`grid flatten Wednesday failed ${JSON.stringify(yoga)}`)
+}
+
+const eightCells = flattenTimetableOcrPayload({
+  slots: [
+    {
+      startTime: '10:00',
+      endTime: '11:30',
+      cells: ['第二大节', '中国管理智慧', '英语国家社会与文化', '', '微积分C II', '职业生涯教育', '', ''],
+    },
+  ],
+})
+if (
+  eightCells.courses[0]?.weekday !== 1 ||
+  eightCells.courses[0]?.name !== '中国管理智慧' ||
+  eightCells.courses[1]?.weekday !== 2
+) {
+  throw new Error(`8-cell 节次 skip failed ${JSON.stringify(eightCells.courses)}`)
+}
+
+const teachers = parseOcrCellText(
+  '数据分析应用案例\n靳永爱 教授,杨凡 教授,郭晓明 教授\n教二702/5-6节/1-16周',
+)
+if (
+  !teachers ||
+  teachers.name !== '数据分析应用案例' ||
+  !teachers.teacher?.includes('靳永爱') ||
+  teachers.location !== '教二702'
+) {
+  throw new Error(`multi-teacher cell parse failed ${JSON.stringify(teachers)}`)
+}
+const psych = parseOcrCellText('大学生心理健康\n张宏宇\n理论学时:32\n教一1304/7-8节/1-16周')
+if (!psych || psych.name !== '大学生心理健康' || psych.teacher !== '张宏宇') {
+  throw new Error(`short teacher parse failed ${JSON.stringify(psych)}`)
+}
+const sticky = hydrateTimetableOcr(
+  {
+    courses: [
+      {
+        name: '大学生心理健康 张宏宇',
+        weekday: 2,
+        startTime: '14:00',
+        endTime: '15:30',
+        location: '教一1304',
+        weeks: '1-16周',
+      },
+    ],
+  },
+  defaults,
+)
+if (sticky.courses[0]?.name !== '大学生心理健康' || sticky.courses[0]?.teacher !== '张宏宇') {
+  throw new Error(`sticky teacher hydrate failed ${JSON.stringify(sticky.courses[0])}`)
+}
+
+const keyed = hydrateTimetableOcr(
+  {
+    星期一: [{ name: '社会科学研究方法', startTime: '14:00', endTime: '15:30', location: '教二702' }],
+    星期二: [{ name: '大学生心理健康', startTime: '14:00', endTime: '15:30' }],
+  },
+  defaults,
+)
+if (
+  keyed.courses.find((c) => c.name.includes('社会'))?.weekday !== 1 ||
+  keyed.courses.find((c) => c.name.includes('心理'))?.weekday !== 2
+) {
+  throw new Error(`weekday-keyed object flatten failed ${JSON.stringify(keyed.courses)}`)
+}
+
 console.log(
   'timetable selftest ok',
   `${grid.courses.length} courses`,
@@ -215,4 +365,5 @@ console.log(
   `math ${math.startTime}-${math.endTime} (${math.weekday})`,
   `xlsx ${xlsx.courses.length}`,
   `ocr ${ocr.courses.length}/${ocr.exams.length}`,
+  `label ${calc.weekday} grid ${gridCalc.weekday}/${yoga.weekday}`,
 )

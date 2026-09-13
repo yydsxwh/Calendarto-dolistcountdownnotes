@@ -8,11 +8,16 @@ import {
 import { classifyTimetableFile } from './file-kinds'
 import { explainOcrHttpError, prepareTimetableImage } from './image-prep'
 import {
+  flattenTimetableOcrPayload,
+  resolveOcrWeekday,
+  splitPackedCourse,
+  text,
+} from './ocr-flatten'
+import {
   durationMinutes,
   normalizeClockInput,
   parsePeriodHint,
   parseTimeRange,
-  parseWeekday,
 } from './periods'
 import type { TimetableImportResult } from './timetable-import'
 import { timetableOcrUrl } from './native'
@@ -39,32 +44,20 @@ export type OcrExamDraft = {
 }
 
 export type TimetableOcrPayload = {
-  courses?: OcrCourseDraft[]
-  exams?: OcrExamDraft[]
+  courses?: unknown
+  exams?: OcrExamDraft[] | unknown
   warnings?: string[]
   model?: string
   error?: string
+  dayHeaders?: unknown
+  slots?: unknown
+  grid?: unknown
+  schedule?: unknown
+  [key: string]: unknown
 }
 
 function ocrEndpoint(): string {
   return timetableOcrUrl()
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {}
-}
-
-function text(value: unknown): string {
-  return value == null ? '' : String(value).trim()
-}
-
-function warningList(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value
-    .map((item) => (typeof item === 'string' ? item.trim() : text(asRecord(item).message)))
-    .filter(Boolean)
 }
 
 function parseExamKind(raw: string): ExamKind {
@@ -106,14 +99,6 @@ function resolveSlot(item: Record<string, unknown>): { start: string; end: strin
   return null
 }
 
-function resolveWeekday(value: unknown): number | null {
-  if (typeof value === 'number' && value >= 1 && value <= 7) return value
-  const fromText = parseWeekday(text(value))
-  if (fromText) return fromText
-  const n = Number(value)
-  return n >= 1 && n <= 7 ? n : null
-}
-
 /** Models sometimes emit 0–6 (Monday=0) instead of 1–7 (Monday=1). */
 export function remapZeroBasedWeekdays<T extends { weekday?: unknown }>(items: T[]): T[] {
   const nums = items
@@ -138,40 +123,42 @@ export function hydrateTimetableOcr(
   raw: TimetableOcrPayload,
   defaults: { classRemindMinutes: number; examRemindMinutes: number },
 ): TimetableImportResult {
-  const warnings = warningList(raw.warnings)
+  const flat = flattenTimetableOcrPayload(raw)
+  const warnings = [...flat.warnings]
   const courses: Course[] = []
   const exams: Exam[] = []
-  const drafts = remapZeroBasedWeekdays(raw.courses || [])
+  const drafts = remapZeroBasedWeekdays(flat.courses)
 
   for (const item of drafts) {
     const rec = item as unknown as Record<string, unknown>
-    const name = text(rec.name)
-    const weekday = resolveWeekday(rec.weekday)
+    const meta = splitPackedCourse(rec)
+    const weekday = resolveOcrWeekday({ ...rec, ...meta })
     const slot = resolveSlot(rec)
-    if (!name || !weekday || !slot) {
-      warnings.push(`已跳过无法核对的课程：${name || '（无课名）'}`)
+    if (!meta.name || !weekday || !slot) {
+      warnings.push(`已跳过无法核对的课程：${meta.name || '（无课名）'}`)
       continue
     }
     if (durationMinutes(slot.start, slot.end) <= 0) {
-      warnings.push(`「${name}」结束时间不晚于开始时间，已跳过`)
+      warnings.push(`「${meta.name}」结束时间不晚于开始时间，已跳过`)
       continue
     }
     courses.push({
       id: uid(),
-      name,
+      name: meta.name,
       weekday,
       startTime: slot.start,
       endTime: slot.end,
-      location: text(rec.location) || undefined,
-      teacher: text(rec.teacher) || undefined,
-      weeks: text(rec.weeks) || undefined,
+      location: meta.location,
+      teacher: meta.teacher,
+      weeks: meta.weeks,
       color: COURSE_COLORS[courses.length % COURSE_COLORS.length],
       remindMinutes: defaults.classRemindMinutes,
       createdAt: Date.now(),
     })
   }
 
-  for (const item of raw.exams || []) {
+  const examItems = Array.isArray(flat.exams) ? flat.exams : []
+  for (const item of examItems) {
     const rec = item as unknown as Record<string, unknown>
     const name = text(rec.name)
     const date = parseDate(text(rec.date))
@@ -197,7 +184,7 @@ export function hydrateTimetableOcr(
 
   const kind =
     courses.length && exams.length ? 'mixed' : exams.length ? 'exams' : 'courses'
-  return { courses, exams, warnings, sheets: raw.model ? [raw.model] : ['ai'], kind }
+  return { courses, exams, warnings, sheets: flat.model ? [flat.model] : ['ai'], kind }
 }
 
 export async function recognizeTimetableFile(

@@ -218,6 +218,7 @@ function DayColumn({
         >
           <strong>{item.course.name}</strong>
           {item.course.location ? <span>{item.course.location}</span> : null}
+          {item.course.weeks ? <span>{item.course.weeks}</span> : null}
           <span>
             {item.course.startTime}-{item.course.endTime}
           </span>

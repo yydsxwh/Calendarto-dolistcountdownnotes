@@ -234,7 +234,7 @@ export default function Schedule({
     const hint =
       focus === 'exams'
         ? '这是教务处考试安排表。抽出科目、日期、开考时间、考场。不要把课程表当成考试。'
-        : '这是教务处周课表。表头从左到右若是周一到周日，weekday 1=周一（不是周日）。格子里印了几点就用几点，不要改成整点 8:00。'
+        : '这是教务处周课表。第一列是节次/时间，不是星期。星期一列必须 weekdayLabel=星期一 且 weekday=1，不要把节次列算进星期。优先返回 dayHeaders+slots.cells，cells[0]是星期一。教室只写房间号，单周/双周/13-16周写入 weeks。格子里印了几点就用该行钟点。'
     try {
       const result = await importTimetableAny(
         file,

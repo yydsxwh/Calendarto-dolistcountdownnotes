@@ -21,6 +21,7 @@ APK_SRC="${DEPLOY_APK_FILE:-$ROOT/android/app/build/outputs/apk/debug/app-debug.
 if [[ -f "$APK_SRC" ]]; then
   scp -i "$KEY" -o IdentitiesOnly=yes "$APK_SRC" "$HOST:$DEST/kemiao-days.apk"
   echo "Published Android APK $HOST:$DEST/kemiao-days.apk"
+  echo "Serve that file with scripts/nginx-kemiao-days-apk.conf (exact location, not SPA try_files)."
 else
   echo "No APK at $APK_SRC; skip install-package upload. Run npm run android:apk first."
 fi

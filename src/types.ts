@@ -1,4 +1,4 @@
-export type View = 'today' | 'calendar' | 'todos' | 'schedule' | 'days' | 'notes'
+export type View = 'today' | 'calendar' | 'todos' | 'schedule' | 'exams' | 'selfschedule' | 'days' | 'notes'
 
 export type ExamKind = 'midterm' | 'final' | 'makeup' | 'other'
 export type TermKind = 'fall' | 'spring' | 'summer' | 'winter' | 'practice' | 'intern'

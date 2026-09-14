@@ -169,7 +169,7 @@ jobs:
           scp -i deploy_key -P "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no release/kemiao-days.apk "$SERVER_USER@$SERVER_HOST:/var/www/yyds-course-platform/public/products/days/kemiao-days.apk"
           rm -f deploy_key
 
-  ios-project:
+  ios:
     runs-on: macos-latest
     steps:
       - name: Checkout
@@ -181,14 +181,24 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm install
-      - name: Create iOS platform
-        run: npx cap add ios || true
-      - name: Build web and sync iOS
-        run: npm run build && npx cap sync ios
-      - name: Archive iOS project
+      - name: Build and sync iOS client
+        run: npm run build:ios
+      - name: Build iOS Simulator app
+        run: npm run ios:simulator
+      - name: Archive iOS Xcode project
         run: zip -qr days-ios-project.zip ios
-      - name: Upload iOS project
+      - name: Archive simulator app
+        run: |
+          APP_PATH="$(find ios-build/Build/Products/Debug-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$APP_PATH"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" days-ios-simulator-app.zip
+      - name: Upload iOS Xcode project
         uses: actions/upload-artifact@v4
         with:
           name: days-ios-project
           path: days-ios-project.zip
+      - name: Upload iOS simulator app
+        uses: actions/upload-artifact@v4
+        with:
+          name: days-ios-simulator
+          path: days-ios-simulator-app.zip

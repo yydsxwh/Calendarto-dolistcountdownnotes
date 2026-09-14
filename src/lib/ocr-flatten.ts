@@ -420,9 +420,47 @@ function asCourseList(value: unknown): Record<string, unknown>[] {
   return []
 }
 
+function looksLikeDate(raw: unknown): string | null {
+  const value = text(raw)
+  const iso = value.match(/(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})/)
+  if (iso) {
+    return `${iso[1]}-${String(Number(iso[2])).padStart(2, '0')}-${String(Number(iso[3])).padStart(2, '0')}`
+  }
+  const md = value.match(/^(\d{1,2})[-/.月](\d{1,2})/)
+  if (!md) return null
+  const now = new Date()
+  return `${now.getFullYear()}-${String(Number(md[1])).padStart(2, '0')}-${String(Number(md[2])).padStart(2, '0')}`
+}
+
+function flattenExams(data: Record<string, unknown>): Record<string, unknown>[] {
+  const exams: Record<string, unknown>[] = []
+  const source = data.exams ?? data.examList ?? asRecord(data.schedule).exams
+  if (Array.isArray(source)) {
+    for (const item of source) {
+      if (item && typeof item === 'object' && !Array.isArray(item)) exams.push(item as Record<string, unknown>)
+    }
+    return exams
+  }
+  if (source && typeof source === 'object') {
+    for (const [key, value] of Object.entries(source as Record<string, unknown>)) {
+      const dated = looksLikeDate(key)
+      const items = Array.isArray(value) ? value : [value]
+      for (const item of items) {
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          exams.push({
+            ...(item as Record<string, unknown>),
+            date: text((item as Record<string, unknown>).date) || dated || undefined,
+          })
+        }
+      }
+    }
+  }
+  return exams
+}
+
 export function flattenTimetableOcrPayload(raw: unknown): {
   courses: Record<string, unknown>[]
-  exams: unknown
+  exams: Record<string, unknown>[]
   warnings: string[]
   model?: string
   error?: string
@@ -442,7 +480,7 @@ export function flattenTimetableOcrPayload(raw: unknown): {
   const courses = fromGrid.length > 0 ? fromGrid : fromList.length > 0 ? fromList : fromKeys
   return {
     courses,
-    exams: data.exams,
+    exams: flattenExams(data),
     warnings,
     model: text(data.model) || undefined,
     error: text(data.error) || undefined,

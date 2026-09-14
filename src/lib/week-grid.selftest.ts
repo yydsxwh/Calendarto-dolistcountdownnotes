@@ -1,5 +1,8 @@
 import { createCourse, createExam } from './store'
 import {
+  axisHeight,
+  axisOffset,
+  buildTimeAxis,
   courseInTeachingWeek,
   DEFAULT_DAY_END_MIN,
   DEFAULT_DAY_START_MIN,
@@ -138,5 +141,53 @@ if (slot.startTime !== '08:00' || slot.endTime !== '09:30') {
 
 const exam = createExam('期末', { date: '2026-09-16', startTime: '14:00', endTime: '16:00' })
 if (exam.date !== days[2].iso) throw new Error('exam should land on Wednesday of this week')
+
+const late = createCourse('晚开', { weekday: 1, startTime: '08:30', endTime: '10:05' })
+const axis830 = buildTimeAxis({ hiddenHours: hiddenDawn, courses: [late] })
+if (axis830.originMin !== 8 * 60 + 30 || axis830.endMin !== 10 * 60 + 5) {
+  throw new Error(`08:30 axis range failed ${axis830.originMin}-${axis830.endMin}`)
+}
+if (axis830.marks[0]?.label !== '08:30' || !axis830.marks.some((m) => m.label === '10:05')) {
+  throw new Error(`08:30 axis marks failed ${axis830.marks.map((m) => m.label).join(',')}`)
+}
+if (axisOffset(8 * 60 + 30, axis830) !== 0) {
+  throw new Error(`08:30 should sit at the top of the timeline, got ${axisOffset(8 * 60 + 30, axis830)}`)
+}
+const laid830 = layoutDayCourses([late], hiddenDawn, 56, axis830)
+if (!laid830[0] || laid830[0].top !== 0) {
+  throw new Error(`08:30 block should start at y=0, got ${laid830[0]?.top}`)
+}
+if (Math.abs(axisHeight(axis830) - ((10 * 60 + 5 - (8 * 60 + 30)) / 60) * 56) > 1) {
+  throw new Error(`08:30–10:05 height should follow minutes, got ${axisHeight(axis830)}`)
+}
+
+const dajie = [
+  createCourse('第一节', { weekday: 1, startTime: '08:00', endTime: '09:30' }),
+  createCourse('第二节', { weekday: 4, startTime: '10:00', endTime: '11:30' }),
+]
+const axisDa = buildTimeAxis({ hiddenHours: [0, 1, 2, 3, 4, 5, 6, 7], courses: dajie })
+const daLabels = axisDa.marks.filter((m) => m.kind === 'event').map((m) => m.label)
+if (!['08:00', '09:30', '10:00', '11:30'].every((label) => daLabels.includes(label))) {
+  throw new Error(`大节 marks failed ${daLabels.join(',')}`)
+}
+if (axisDa.originMin !== 8 * 60 || axisDa.endMin !== 11 * 60 + 30) {
+  throw new Error(`大节 range should be 08:00–11:30, got ${axisDa.originMin}-${axisDa.endMin}`)
+}
+if (daLabels.includes('08:45') || daLabels.includes('08:50')) {
+  throw new Error('大节 axis must use printed start/end, not inferred 45-minute splits')
+}
+
+const shorts = [
+  createCourse('小节1', { weekday: 1, startTime: '08:00', endTime: '08:45' }),
+  createCourse('小节2', { weekday: 1, startTime: '08:55', endTime: '09:40' }),
+]
+const axis45 = buildTimeAxis({ hiddenHours: [0, 1, 2, 3, 4, 5, 6, 7], courses: shorts })
+const labels45 = axis45.marks.filter((m) => m.kind === 'event').map((m) => m.label)
+if (!['08:00', '08:45', '09:40'].every((label) => labels45.includes(label))) {
+  throw new Error(`45-minute marks failed ${labels45.join(',')}`)
+}
+if (axis45.originMin !== 8 * 60 || axis45.endMin !== 9 * 60 + 40) {
+  throw new Error(`45-minute range should be 08:00–09:40, got ${axis45.originMin}-${axis45.endMin}`)
+}
 
 console.log('week-grid selftest ok')

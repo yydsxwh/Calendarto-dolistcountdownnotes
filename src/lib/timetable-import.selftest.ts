@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import * as XLSX from 'xlsx'
-import { importTimetableFile } from './timetable-import'
+import { importTimetableFile, sortExams } from './timetable-import'
 import { hiddenHoursAroundCourses, inferClassPeriods } from './period-infer'
 import {
   flattenTimetableOcrPayload,
@@ -42,6 +42,15 @@ const exams = await importTimetableFile(
   defaults,
 )
 if (exams.exams.length !== 2) throw new Error(`exams expected 2 got ${exams.exams.length}`)
+const plainExamCsv = ['科目,日期,开始,结束,考场', '线性代数,2026-11-02,09:00,11:00,教三201'].join('\n')
+const plainExams = await importTimetableFile(
+  new File([plainExamCsv], 'plain-exams.csv', { type: 'text/csv' }),
+  defaults,
+)
+if (plainExams.exams.length !== 1 || plainExams.exams[0].name !== '线性代数' || plainExams.exams[0].date !== '2026-11-02') {
+  throw new Error(`plain exam table failed ${JSON.stringify(plainExams.exams)}`)
+}
+if (plainExams.courses.length !== 0) throw new Error('plain exam table should not parse as courses')
 if (exams.courses.length !== 0) throw new Error(`exam sheet should not also parse as courses`)
 if (exams.warnings.some((w) => w.includes('缺少星期'))) {
   throw new Error(`exam sheet should not warn as course list: ${exams.warnings.join('; ')}`)
@@ -342,6 +351,24 @@ const sticky = hydrateTimetableOcr(
 )
 if (sticky.courses[0]?.name !== '大学生心理健康' || sticky.courses[0]?.teacher !== '张宏宇') {
   throw new Error(`sticky teacher hydrate failed ${JSON.stringify(sticky.courses[0])}`)
+}
+
+const datedAsExam = hydrateTimetableOcr(
+  {
+    courses: [
+      { name: '大学英语', date: '2026-10-08', startTime: '14:00', endTime: '16:00', location: '外语楼101' },
+    ],
+    exams: [{ name: '高等数学', date: '2026-10-20', startTime: '08:00', endTime: '10:00', kind: '期末' }],
+  },
+  defaults,
+)
+if (datedAsExam.courses.length !== 0) throw new Error('dated OCR course should become exam')
+if (datedAsExam.exams.length !== 2 || !datedAsExam.exams.some((e) => e.name === '大学英语')) {
+  throw new Error(`dated OCR exam flatten failed ${JSON.stringify(datedAsExam.exams)}`)
+}
+const sorted = sortExams(datedAsExam.exams)
+if (sorted[0].name !== '大学英语' || sorted[1].name !== '高等数学') {
+  throw new Error(`exam date sort failed ${sorted.map((e) => e.name).join(',')}`)
 }
 
 const keyed = hydrateTimetableOcr(

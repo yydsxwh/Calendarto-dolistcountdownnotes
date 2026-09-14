@@ -127,7 +127,17 @@ export function hydrateTimetableOcr(
   const warnings = [...flat.warnings]
   const courses: Course[] = []
   const exams: Exam[] = []
-  const drafts = remapZeroBasedWeekdays(flat.courses)
+  const datedExamDrafts: Record<string, unknown>[] = []
+  const courseDrafts: Record<string, unknown>[] = []
+  for (const item of flat.courses) {
+    const rec = item as Record<string, unknown>
+    if (parseDate(text(rec.date) || text(rec.examDate) || text(rec['日期']))) {
+      datedExamDrafts.push(rec)
+    } else {
+      courseDrafts.push(rec)
+    }
+  }
+  const drafts = remapZeroBasedWeekdays(courseDrafts)
 
   for (const item of drafts) {
     const rec = item as unknown as Record<string, unknown>
@@ -157,11 +167,11 @@ export function hydrateTimetableOcr(
     })
   }
 
-  const examItems = Array.isArray(flat.exams) ? flat.exams : []
+  const examItems = [...flat.exams, ...datedExamDrafts]
   for (const item of examItems) {
     const rec = item as unknown as Record<string, unknown>
-    const name = text(rec.name)
-    const date = parseDate(text(rec.date))
+    const name = text(rec.name) || text(rec.course) || text(rec.subject) || text(rec.title)
+    const date = parseDate(text(rec.date) || text(rec.examDate) || text(rec['日期']))
     const start = normalizeClockInput(text(rec.startTime) || text(rec.time)) || '09:00'
     const end = text(rec.endTime) ? normalizeClockInput(text(rec.endTime)) || undefined : undefined
     if (!name || !date) {

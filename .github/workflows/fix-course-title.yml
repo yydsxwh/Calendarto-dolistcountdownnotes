@@ -1,0 +1,43 @@
+name: Rename course table title
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  rename-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Rename course table title
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/components/Schedule.tsx')
+          text = path.read_text(encoding='utf-8')
+          old = '超级课程表'
+          new = '颗秒课程表'
+          if old not in text:
+              print('Course table title already updated; nothing to do.')
+          else:
+              path.write_text(text.replace(old, new), encoding='utf-8')
+              print('Renamed course table title.')
+          PY
+
+      - name: Commit change
+        run: |
+          if git diff --quiet -- src/components/Schedule.tsx; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/Schedule.tsx
+          git commit -m 'fix: rename course table to 颗秒课程表'
+          git push

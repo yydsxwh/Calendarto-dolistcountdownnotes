@@ -45,7 +45,7 @@ jobs:
           cp -a dist/. deploy/
           cp android/app/build/outputs/apk/debug/app-debug.apk deploy/kemiao-days.apk
           tar -czf days-deploy.tgz -C deploy .
-      - name: Upload to Hong Kong server
+      - name: Upload web and Android to Hong Kong server
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
           SERVER_PORT: ${{ secrets.SERVER_PORT }}
@@ -86,7 +86,28 @@ jobs:
       - name: Package Windows desktop
         shell: pwsh
         run: npx --yes electron-builder --win --x64 --publish never
-      - name: Upload Windows installer
+      - name: Rename installer
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem release -Filter '*.exe' | Select-Object -First 1
+          if (-not $exe) { throw 'Windows installer was not produced' }
+          Copy-Item $exe.FullName release/kemiao-days-windows.exe -Force
+      - name: Upload Windows installer to Hong Kong server
+        shell: pwsh
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+        run: |
+          $key = Join-Path $env:RUNNER_TEMP 'deploy_key'
+          Set-Content -Path $key -Value $env:SERVER_SSH_KEY -NoNewline
+          icacls $key /inheritance:r /grant:r "$env:USERNAME:(R)" | Out-Null
+          $port = if ($env:SERVER_PORT) { $env:SERVER_PORT } else { '22' }
+          ssh -i $key -p $port -o IdentitiesOnly=yes -o StrictHostKeyChecking=no "$env:SERVER_USER@$env:SERVER_HOST" "mkdir -p /var/www/yyds-course-platform/public/products/days"
+          scp -i $key -P $port -o IdentitiesOnly=yes -o StrictHostKeyChecking=no release/kemiao-days-windows.exe "$env:SERVER_USER@$env:SERVER_HOST`:/var/www/yyds-course-platform/public/products/days/kemiao-days-windows.exe"
+          Remove-Item $key -Force
+      - name: Upload Windows installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: days-windows

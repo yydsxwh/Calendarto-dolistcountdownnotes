@@ -299,7 +299,7 @@ export default function Schedule({
   return (
     <section className="view">
       <header className="view-head">
-        <h2>超级课程表</h2>
+        <h2>颗秒课程表</h2>
         <p className="muted">
           课表是一张从 00:00 到 23:59 的表格。点右上角「课表设置」选学年学期、开学周数，并隐藏凌晨等不上课的行。
         </p>

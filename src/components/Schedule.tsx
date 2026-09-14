@@ -14,7 +14,7 @@ import { TIMETABLE_ACCEPT } from '../lib/file-kinds'
 import { importTimetableAny, type ImportFocus } from '../lib/import-any'
 import { hiddenHoursAroundCourses, inferClassPeriods } from '../lib/period-infer'
 import { upcomingExams } from '../lib/reminders'
-import { sampleExamCsv, sampleGridCsv, type TimetableImportResult } from '../lib/timetable-import'
+import { sampleExamCsv, sampleGridCsv, sortExams, type TimetableImportResult } from '../lib/timetable-import'
 import { termLabel } from '../lib/terms'
 import {
   courseInTeachingWeek,
@@ -25,7 +25,7 @@ import {
   weekRangeLabel,
   weekStartForTeachingWeek,
 } from '../lib/week-grid'
-import { EXAM_KIND_LABEL, type Course, type ExamKind } from '../types'
+import { EXAM_KIND_LABEL, type Course, type Exam, type ExamKind } from '../types'
 import ScheduleSettings from './ScheduleSettings'
 import WeekTimetable from './WeekTimetable'
 
@@ -81,6 +81,7 @@ export default function Schedule({
   const [now, setNow] = useState(() => new Date())
   const [selectedId, setSelectedId] = useState<string>()
   const [showAdd, setShowAdd] = useState(false)
+  const [showAddExam, setShowAddExam] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const [examName, setExamName] = useState('')
@@ -126,6 +127,7 @@ export default function Schedule({
   }, [])
 
   const examsSoon = upcomingExams(store.data.exams, todayISO)
+  const examsByDate = useMemo(() => sortExams(store.data.exams), [store.data.exams])
 
   const addManual = () => {
     if (!name.trim()) return
@@ -233,8 +235,8 @@ export default function Schedule({
     setPreviewUrl(file.type.startsWith('image/') ? URL.createObjectURL(file) : '')
     const hint =
       focus === 'exams'
-        ? '这是教务处考试安排表。抽出科目、日期、开考时间、考场。不要把课程表当成考试。'
-        : '这是教务处周课表。表头从左到右若是周一到周日，weekday 1=周一（不是周日）。格子里印了几点就用几点，不要改成整点 8:00。'
+        ? '这是教务处考试安排表，不是周课表。只抽出考试：科目、日期、开考时间、结束时间、考场、座位。返回 exams 数组。不要把星期一到星期日的课程格子当成考试。'
+        : '这是教务处周课表。第一列是节次/时间，不是星期。星期一列必须 weekdayLabel=星期一 且 weekday=1，不要把节次列算进星期。优先返回 dayHeaders+slots.cells，cells[0]是星期一。教室只写房间号，单周/双周/13-16周写入 weeks。格子里印了几点就用该行钟点。'
     try {
       const result = await importTimetableAny(
         file,
@@ -270,6 +272,14 @@ export default function Schedule({
     setReview((prev) =>
       prev
         ? { ...prev, courses: prev.courses.map((c) => (c.id === id ? { ...c, ...patch } : c)) }
+        : prev,
+    )
+  }
+
+  const patchReviewExam = (id: string, patch: Partial<Exam>) => {
+    setReview((prev) =>
+      prev
+        ? { ...prev, exams: prev.exams.map((exam) => (exam.id === id ? { ...exam, ...patch } : exam)) }
         : prev,
     )
   }
@@ -349,6 +359,9 @@ export default function Schedule({
                 课表设置
               </button>
             </div>
+            <p className="muted" style={{ margin: '8px 0 0' }}>
+              拍教务处周课表，或导入 xlsx / csv。考试安排请到「考试时间表」导入。
+            </p>
             <div className="row wrap" style={{ marginTop: 10 }}>
               <label className="btn primary file-btn">
                 {importing ? '正在识别课表…' : '导入课表'}
@@ -470,6 +483,7 @@ export default function Schedule({
           <div className="tt-wrap card">
             <WeekTimetable
               courses={visibleCourses}
+              axisCourses={termCourses}
               exams={store.data.exams}
               weekStart={weekMonday}
               now={now}
@@ -649,10 +663,10 @@ export default function Schedule({
 
       {tab === 'exams' && (
         <>
-          <div className="card">
+          <div className="card week-toolbar">
             <h3>考试时间表</h3>
             <p className="muted">
-              教务处的考试安排也可以拍照或导入表格。识别后按日期、开考时间排成一张表。
+              拍教务处考试安排，或导入 xlsx / csv。识别后按日期、开考时间排成一张表。周课表请到上一页导入。
             </p>
             <div className="row wrap">
               <label className="btn primary file-btn">
@@ -669,27 +683,159 @@ export default function Schedule({
                   }}
                 />
               </label>
+              <button className="btn ghost" onClick={() => setShowAddExam((v) => !v)}>
+                {showAddExam ? '收起登记' : '登记一场'}
+              </button>
+              {store.data.exams.length === 0 && (
+                <button
+                  className="btn ghost"
+                  onClick={() => {
+                    void (async () => {
+                      const res = await fetch(`${import.meta.env.BASE_URL}samples/exams.csv`)
+                      const blob = await res.blob()
+                      await onImport(new File([blob], 'exams.csv', { type: 'text/csv' }), 'exams')
+                    })()
+                  }}
+                >
+                  载入示例考试表
+                </button>
+              )}
               <button className="btn ghost" onClick={() => downloadSample('exam')}>
                 下载考试表示例 CSV
               </button>
             </div>
+            {showAddExam && (
+              <div className="row wrap" style={{ marginTop: 10 }}>
+                <input
+                  className="input"
+                  placeholder="科目，例如「高等数学」"
+                  value={examName}
+                  onChange={(e) => setExamName(e.target.value)}
+                />
+                <select className="input slim" value={examKind} onChange={(e) => setExamKind(e.target.value as ExamKind)}>
+                  {Object.entries(EXAM_KIND_LABEL).map(([k, label]) => (
+                    <option key={k} value={k}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <input className="input slim" type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} />
+                <TimeInput value={examStart} onChange={setExamStart} label="开考时间" />
+                <TimeInput value={examEnd} onChange={setExamEnd} label="结束时间" />
+                <input
+                  className="input slim"
+                  placeholder="考场"
+                  value={examLoc}
+                  onChange={(e) => setExamLoc(e.target.value)}
+                />
+                <button className="btn primary" onClick={addExam}>
+                  登记考试
+                </button>
+              </div>
+            )}
             {previewUrl && tab === 'exams' ? (
               <img className="ocr-preview" src={previewUrl} alt="待识别的考试表" />
             ) : null}
             {review && review.exams.length > 0 ? (
               <div className="review-box">
-                <p className="muted">核对接日期和开考时间后再写入。</p>
-                <ul className="mini-list">
-                  {review.exams.map((exam) => (
-                    <li key={exam.id}>
-                      {EXAM_KIND_LABEL[exam.kind]} {exam.name} {exam.date} {exam.startTime}
-                      {exam.endTime ? `-${exam.endTime}` : ''} {exam.location}
-                    </li>
-                  ))}
-                </ul>
+                <h3>核对考试识别</h3>
+                <p className="muted">核对接日期和开考时间后再写入。这一页只收考试，不会写进周课表。</p>
+                <div className="review-table-wrap">
+                  <table className="review-table exam-table">
+                    <thead>
+                      <tr>
+                        <th>科目</th>
+                        <th>类型</th>
+                        <th>日期</th>
+                        <th>开始</th>
+                        <th>结束</th>
+                        <th>地点</th>
+                        <th>座位</th>
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortExams(review.exams).map((exam) => (
+                        <tr key={exam.id}>
+                          <td>
+                            <input
+                              value={exam.name}
+                              onChange={(e) => patchReviewExam(exam.id, { name: e.target.value })}
+                            />
+                          </td>
+                          <td>
+                            <select
+                              value={exam.kind}
+                              onChange={(e) => patchReviewExam(exam.id, { kind: e.target.value as ExamKind })}
+                            >
+                              {Object.entries(EXAM_KIND_LABEL).map(([k, label]) => (
+                                <option key={k} value={k}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                          <td>
+                            <input
+                              value={exam.date}
+                              onChange={(e) => patchReviewExam(exam.id, { date: e.target.value })}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              value={exam.startTime}
+                              onChange={(e) =>
+                                patchReviewExam(exam.id, {
+                                  startTime: normalizeClockInput(e.target.value) || e.target.value,
+                                })
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              value={exam.endTime || ''}
+                              onChange={(e) =>
+                                patchReviewExam(exam.id, {
+                                  endTime: normalizeClockInput(e.target.value) || e.target.value || undefined,
+                                })
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              value={exam.location || ''}
+                              onChange={(e) =>
+                                patchReviewExam(exam.id, { location: e.target.value || undefined })
+                              }
+                            />
+                          </td>
+                          <td>
+                            <input
+                              value={exam.seat || ''}
+                              onChange={(e) => patchReviewExam(exam.id, { seat: e.target.value || undefined })}
+                            />
+                          </td>
+                          <td>
+                            <button
+                              className="icon-btn"
+                              onClick={() =>
+                                setReview((prev) =>
+                                  prev ? { ...prev, exams: prev.exams.filter((e) => e.id !== exam.id) } : prev,
+                                )
+                              }
+                              aria-label="从核对列表去掉这场考试"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 <div className="row wrap">
                   <button className="btn primary" onClick={() => applyResult(review, '考试表识别')}>
-                    写入考试时间表
+                    核对无误，写入考试表
                   </button>
                   <button
                     className="btn ghost"
@@ -707,36 +853,6 @@ export default function Schedule({
               </div>
             ) : null}
           </div>
-          <div className="card">
-            <h3>登记一场考试</h3>
-            <div className="row wrap">
-              <input
-                className="input"
-                placeholder="科目，例如「高等数学」"
-                value={examName}
-                onChange={(e) => setExamName(e.target.value)}
-              />
-              <select className="input slim" value={examKind} onChange={(e) => setExamKind(e.target.value as ExamKind)}>
-                {Object.entries(EXAM_KIND_LABEL).map(([k, label]) => (
-                  <option key={k} value={k}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-              <input className="input slim" type="date" value={examDate} onChange={(e) => setExamDate(e.target.value)} />
-              <TimeInput value={examStart} onChange={setExamStart} label="开考时间" />
-              <TimeInput value={examEnd} onChange={setExamEnd} label="结束时间" />
-              <input
-                className="input slim"
-                placeholder="考场"
-                value={examLoc}
-                onChange={(e) => setExamLoc(e.target.value)}
-              />
-              <button className="btn primary" onClick={addExam}>
-                登记考试
-              </button>
-            </div>
-          </div>
           <div className="card review-table-wrap">
             <table className="review-table exam-table">
               <thead>
@@ -752,14 +868,14 @@ export default function Schedule({
                 </tr>
               </thead>
               <tbody>
-                {store.data.exams.length === 0 ? (
+                {examsByDate.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="muted">
-                      还没有考试。导入教务处考试表，或在上面手动登记。
+                      还没有考试。点上面「导入考试表」拍教务处安排，或导入表格。
                     </td>
                   </tr>
                 ) : (
-                  store.data.exams.map((exam) => (
+                  examsByDate.map((exam) => (
                     <tr key={exam.id}>
                       <td>{exam.date}</td>
                       <td>{WEEKDAY_LABELS[jsWeekday(new Date(`${exam.date}T12:00:00`)) - 1]}</td>
@@ -782,34 +898,30 @@ export default function Schedule({
               </tbody>
             </table>
           </div>
-          <ul className="exam-list">
-            {examsSoon.length === 0 && store.data.exams.length === 0 && (
-              <li className="empty">还没有考试。导入考试表或手动登记，系统会按日期和时间提醒。</li>
-            )}
-            {store.data.exams.map((exam) => {
-              const left = daysUntil(exam.date)
-              const tone = left < 0 ? 'past' : left === 0 ? 'today' : left <= 3 ? 'soon' : ''
-              return (
-                <li key={exam.id} className={`exam-card ${tone}`}>
-                  <div>
-                    <span className="pill">{EXAM_KIND_LABEL[exam.kind]}</span>
-                    <h3>{exam.name}</h3>
-                    <p>
-                      {exam.date} {exam.startTime}
-                      {exam.endTime ? `-${exam.endTime}` : ''} · {exam.location || '地点待定'}
-                      {exam.seat ? ` · 座 ${exam.seat}` : ''}
-                    </p>
-                    <strong>
-                      {left < 0 ? '已结束' : left === 0 ? '就是今天，请再核对开考时间' : `还有 ${left} 天`}
-                    </strong>
-                  </div>
-                  <button className="icon-btn" onClick={() => store.removeExam(exam.id)} aria-label="删除考试">
-                    ✕
-                  </button>
-                </li>
-              )
-            })}
-          </ul>
+          {examsSoon.length > 0 && (
+            <ul className="exam-list">
+              {examsSoon.map((exam) => {
+                const left = daysUntil(exam.date)
+                const tone = left < 0 ? 'past' : left === 0 ? 'today' : left <= 3 ? 'soon' : ''
+                return (
+                  <li key={exam.id} className={`exam-card ${tone}`}>
+                    <div>
+                      <span className="pill">{EXAM_KIND_LABEL[exam.kind]}</span>
+                      <h3>{exam.name}</h3>
+                      <p>
+                        {exam.date} {exam.startTime}
+                        {exam.endTime ? `-${exam.endTime}` : ''} · {exam.location || '地点待定'}
+                        {exam.seat ? ` · 座 ${exam.seat}` : ''}
+                      </p>
+                      <strong>
+                        {left < 0 ? '已结束' : left === 0 ? '就是今天，请再核对开考时间' : `还有 ${left} 天`}
+                      </strong>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </>
       )}
 

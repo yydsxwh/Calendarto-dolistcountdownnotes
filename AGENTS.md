@@ -70,6 +70,14 @@ Standard scripts are defined in `package.json`:
   `packages/shared/src/software-products.ts` (`kemiao-days` + `actions`).
   `scripts/deploy-days.sh` also uploads `kemiao-days.apk` when a local
   debug APK exists.
+  Android APK must not fall through the SPA `try_files` → `index.html`
+  (that downloads HTML named `.apk` and looks like 下载失败). Live nginx
+  uses an exact `location = /products/days/kemiao-days.apk` from
+  `scripts/nginx-kemiao-days-apk.conf`: Android MIME, `gzip off`,
+  `Content-Disposition: attachment`. The products-page button must not
+  use an empty `<a download>` for the APK — Android Chrome then fetches
+  a blob and the first save often fails; second click then works. Omit
+  `download` on `.apk` links and let the browser use the nginx header.
 - SSH: `admin@47.242.157.181` with key file `~/.ssh/yyds_aliyun` (Aliyun
   console key name may show as `cursor`; key comment is `yyds-deploy`).
   Never write the private key into the repo or paste it into chat. If a key

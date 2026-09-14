@@ -1,174 +1,27 @@
-import type { Course, Exam, ReminderSettings } from '../types'
+import type { CalendarEvent, Course, Exam, ReminderSettings, SelfScheduleItem, Todo } from '../types'
 import { combineDateTime, jsWeekday } from './periods'
 import { toISODate } from './dates'
-
-export interface DueReminder {
-  id: string
-  key: string
-  title: string
-  body: string
-  kind: 'class' | 'exam'
-  fireAt: number
-}
-
-const FIRED_KEY = 'kemiao-days-fired-reminders'
-
-function loadFired(): Record<string, number> {
-  try {
-    return JSON.parse(localStorage.getItem(FIRED_KEY) || '{}') as Record<string, number>
-  } catch {
-    return {}
-  }
-}
-
-function saveFired(map: Record<string, number>) {
-  const cutoff = Date.now() - 8 * 86400000
-  const next: Record<string, number> = {}
-  for (const [k, v] of Object.entries(map)) {
-    if (v > cutoff) next[k] = v
-  }
-  localStorage.setItem(FIRED_KEY, JSON.stringify(next))
-}
-
-function nextClassDate(weekday: number, startTime: string): Date {
-  const now = new Date()
-  const todayWd = jsWeekday(now)
-  let add = weekday - todayWd
-  if (add < 0) add += 7
-  const date = new Date(now)
-  date.setDate(now.getDate() + add)
-  const start = combineDateTime(toISODate(date), startTime)
-  if (start.getTime() <= now.getTime() && add === 0) {
-    date.setDate(date.getDate() + 7)
-    return combineDateTime(toISODate(date), startTime)
-  }
-  return start
-}
-
-export function collectDueReminders(
-  courses: Course[],
-  exams: Exam[],
-  settings: ReminderSettings,
-  now = Date.now(),
-): DueReminder[] {
-  if (!settings.enabled) return []
-  const due: DueReminder[] = []
-  const windowMs = 90_000
-
-  for (const course of courses) {
-    if (course.remindMinutes <= 0) continue
-    const start = nextClassDate(course.weekday, course.startTime)
-    const fireAt = start.getTime() - course.remindMinutes * 60_000
-    if (now >= fireAt && now <= fireAt + windowMs) {
-      due.push({
-        id: course.id,
-        key: `class:${course.id}:${start.toISOString()}`,
-        title: `上课提醒 · ${course.name}`,
-        body: `${course.startTime}-${course.endTime} ${course.location || ''}`.trim() +
-          ` · 还有 ${course.remindMinutes} 分钟，现在出发以免迟到`,
-        kind: 'class',
-        fireAt,
-      })
-    }
-  }
-
-  for (const exam of exams) {
-    const start = combineDateTime(exam.date, exam.startTime)
-    const offsets = [exam.remindMinutes]
-    if (settings.examAlsoHourBefore && exam.remindMinutes !== 60) offsets.push(60)
-    for (const minutes of offsets) {
-      if (minutes <= 0) continue
-      const fireAt = start.getTime() - minutes * 60_000
-      if (now >= fireAt && now <= fireAt + windowMs) {
-        const when =
-          minutes >= 1440 ? `${Math.round(minutes / 1440)} 天后` : `${minutes} 分钟后`
-        due.push({
-          id: exam.id,
-          key: `exam:${exam.id}:${minutes}:${exam.date}T${exam.startTime}`,
-          title: `考试提醒 · ${exam.name}`,
-          body: `${exam.date} ${exam.startTime}${exam.endTime ? `-${exam.endTime}` : ''} ${exam.location || ''} · ${when}开考，请核对时间以免记错错过`,
-          kind: 'exam',
-          fireAt,
-        })
-      }
-    }
-  }
-
-  return due
-}
-
-export function takeUnfired(due: DueReminder[]): DueReminder[] {
-  const fired = loadFired()
-  const fresh = due.filter((item) => !fired[item.key])
-  const now = Date.now()
-  for (const item of fresh) fired[item.key] = now
-  if (fresh.length) saveFired(fired)
-  return fresh
-}
-
-export function upcomingClasses(courses: Course[], weekday: number): Course[] {
-  return courses
-    .filter((c) => c.weekday === weekday)
-    .sort((a, b) => a.startTime.localeCompare(b.startTime))
-}
-
-export function upcomingExams(exams: Exam[], fromISO: string): Exam[] {
-  return [...exams]
-    .filter((e) => e.date >= fromISO)
-    .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime))
-}
-
-/** 给 Android 本地通知预排：未来几节课和考试的提醒时刻。 */
-export function upcomingReminderSlots(
-  courses: Course[],
-  exams: Exam[],
-  settings: ReminderSettings,
-  now = Date.now(),
-  weeksAhead = 2,
-): DueReminder[] {
-  if (!settings.enabled) return []
-  const slots: DueReminder[] = []
-
-  for (const course of courses) {
-    if (course.remindMinutes <= 0) continue
-    for (let w = 0; w < weeksAhead; w++) {
-      const first = nextClassDate(course.weekday, course.startTime)
-      const start = new Date(first)
-      start.setDate(first.getDate() + w * 7)
-      const fireAt = start.getTime() - course.remindMinutes * 60_000
-      if (fireAt <= now) continue
-      slots.push({
-        id: course.id,
-        key: `class:${course.id}:${start.toISOString()}`,
-        title: `上课提醒 · ${course.name}`,
-        body: `${course.startTime}-${course.endTime} ${course.location || ''}`.trim() +
-          ` · 还有 ${course.remindMinutes} 分钟，现在出发以免迟到`,
-        kind: 'class',
-        fireAt,
-      })
-    }
-  }
-
-  for (const exam of exams) {
-    const start = combineDateTime(exam.date, exam.startTime)
-    const offsets = [exam.remindMinutes]
-    if (settings.examAlsoHourBefore && exam.remindMinutes !== 60) offsets.push(60)
-    for (const minutes of offsets) {
-      if (minutes <= 0) continue
-      const fireAt = start.getTime() - minutes * 60_000
-      if (fireAt <= now) continue
-      const when =
-        minutes >= 1440 ? `${Math.round(minutes / 1440)} 天后` : `${minutes} 分钟后`
-      slots.push({
-        id: exam.id,
-        key: `exam:${exam.id}:${minutes}:${exam.date}T${exam.startTime}`,
-        title: `考试提醒 · ${exam.name}`,
-        body: `${exam.date} ${exam.startTime}${exam.endTime ? `-${exam.endTime}` : ''} ${exam.location || ''} · ${when}开考，请核对时间以免记错错过`,
-        kind: 'exam',
-        fireAt,
-      })
-    }
-  }
-
-  return slots.sort((a, b) => a.fireAt - b.fireAt).slice(0, 48)
-}
+export interface DueReminder { id:string; key:string; title:string; body:string; kind:'class'|'exam'|'event'|'todo'|'self'; fireAt:number }
+const FIRED_KEY='kemiao-days-fired-reminders'
+function loadFired():Record<string,number>{try{return JSON.parse(localStorage.getItem(FIRED_KEY)||'{}') as Record<string,number>}catch{return {}}}
+function saveFired(map:Record<string,number>){const cutoff=Date.now()-8*86400000;const next:Record<string,number>={};for(const[k,v]of Object.entries(map))if(v>cutoff)next[k]=v;localStorage.setItem(FIRED_KEY,JSON.stringify(next))}
+function nextClassDate(weekday:number,startTime:string):Date{const now=new Date(),todayWd=jsWeekday(now);let add=weekday-todayWd;if(add<0)add+=7;const date=new Date(now);date.setDate(now.getDate()+add);const start=combineDateTime(toISODate(date),startTime);if(start.getTime()<=now.getTime()&&add===0){date.setDate(date.getDate()+7);return combineDateTime(toISODate(date),startTime)}return start}
+function nextSelfDate(item:SelfScheduleItem,weekOffset=0):Date{const base=nextClassDate(item.weekday,item.startTime);base.setDate(base.getDate()+weekOffset*7);return base}
+function eventOccurrences(event:CalendarEvent,weeksAhead=2):Date[]{const out:Date[]=[];if(!event.startTime||event.allDay)return out;const first=combineDateTime(event.date,event.startTime);if(event.repeat==='none'){out.push(first);return out}for(let i=0;i<weeksAhead*7;i++){const d=new Date(first);if(event.repeat==='daily')d.setDate(first.getDate()+i);else if(event.repeat==='weekly')d.setDate(first.getDate()+i*7);else if(event.repeat==='monthly')d.setMonth(first.getMonth()+i);else d.setFullYear(first.getFullYear()+i);if(d.getTime()>Date.now())out.push(d)}return out}
+function reminder(title:string,body:string,kind:DueReminder['kind'],id:string,key:string,fireAt:number):DueReminder{return{id,key,title,body,kind,fireAt}}
+export function collectDueReminders(courses:Course[],exams:Exam[],settings:ReminderSettings,now=Date.now(),todos:Todo[]=[],selfSchedules:SelfScheduleItem[]=[],events:CalendarEvent[]=[]):DueReminder[]{if(!settings.enabled)return[];const due:DueReminder[]=[];const windowMs=90000;
+ for(const c of courses){if(c.remindMinutes<=0)continue;const start=nextClassDate(c.weekday,c.startTime),fireAt=start.getTime()-c.remindMinutes*60000;if(now>=fireAt&&now<=fireAt+windowMs)due.push(reminder(`上课提醒 · ${c.name}`,`${c.startTime}-${c.endTime} ${c.location||''}`.trim()+` · 还有 ${c.remindMinutes} 分钟，现在出发以免迟到`,'class',c.id,`class:${c.id}:${start.toISOString()}`,fireAt))}
+ for(const e of exams){const start=combineDateTime(e.date,e.startTime),offsets=[e.remindMinutes,...(settings.examAlsoHourBefore&&e.remindMinutes!==60?[60]:[])];for(const minutes of offsets){if(minutes<=0)continue;const fireAt=start.getTime()-minutes*60000;if(now>=fireAt&&now<=fireAt+windowMs)due.push(reminder(`考试提醒 · ${e.name}`,`${e.date} ${e.startTime}${e.endTime?`-${e.endTime}`:''} ${e.location||''} · ${minutes>=1440?`${Math.round(minutes/1440)} 天后`:`${minutes} 分钟后`}开考，请核对时间以免错过`,'exam',e.id,`exam:${e.id}:${minutes}:${e.date}T${e.startTime}`,fireAt))}}
+ for(const t of todos){if(t.done||!t.dueDate||!t.dueTime||t.remindMinutes<=0)continue;const start=combineDateTime(t.dueDate,t.dueTime),fireAt=start.getTime()-t.remindMinutes*60000;if(now>=fireAt&&now<=fireAt+windowMs)due.push(reminder(`待办提醒 · ${t.title}`,`${t.dueDate} ${t.dueTime} 到期 · ${t.priority==='high'?'高优先级':t.priority==='low'?'低优先级':'普通优先级'}`,'todo',t.id,`todo:${t.id}:${t.dueDate}T${t.dueTime}`,fireAt))}
+ for(const s of selfSchedules){if(s.remindMinutes<=0)continue;const start=nextSelfDate(s),fireAt=start.getTime()-s.remindMinutes*60000;if(now>=fireAt&&now<=fireAt+windowMs)due.push(reminder(`自我管理提醒 · ${s.title}`,`${s.startTime}-${s.endTime}${s.note?` · ${s.note}`:''} · ${s.priority==='high'?'重要':s.priority==='low'?'低优先级':'普通'}`,'self',s.id,`self:${s.id}:${start.toISOString()}`,fireAt))}
+ for(const e of events){for(const start of eventOccurrences(e)){const fireAt=start.getTime()-e.remindMinutes*60000;if(now>=fireAt&&now<=fireAt+windowMs)due.push(reminder(`日程提醒 · ${e.title}`,`${e.date} ${e.startTime}${e.endTime?`-${e.endTime}`:''}${e.location?` · ${e.location}`:''}`,'event',e.id,`event:${e.id}:${start.toISOString()}`,fireAt))}}
+ return due}
+export function takeUnfired(due:DueReminder[]):DueReminder[]{const fired=loadFired(),fresh=due.filter(x=>!fired[x.key]),now=Date.now();for(const x of fresh)fired[x.key]=now;if(fresh.length)saveFired(fired);return fresh}
+export function upcomingClasses(courses:Course[],weekday:number):Course[]{return courses.filter(c=>c.weekday===weekday).sort((a,b)=>a.startTime.localeCompare(b.startTime))}
+export function upcomingExams(exams:Exam[],fromISO:string):Exam[]{return[...exams].filter(e=>e.date>=fromISO).sort((a,b)=>a.date.localeCompare(b.date)||a.startTime.localeCompare(b.startTime))}
+export function upcomingReminderSlots(courses:Course[],exams:Exam[],settings:ReminderSettings,now=Date.now(),weeksAhead=2,todos:Todo[]=[],selfSchedules:SelfScheduleItem[]=[],events:CalendarEvent[]=[]):DueReminder[]{if(!settings.enabled)return[];const slots:DueReminder[]=[];for(const c of courses){if(c.remindMinutes<=0)continue;for(let w=0;w<weeksAhead;w++){const start=nextClassDate(c.weekday,c.startTime);start.setDate(start.getDate()+w*7);const fireAt=start.getTime()-c.remindMinutes*60000;if(fireAt>now)slots.push(reminder(`上课提醒 · ${c.name}`,`${c.startTime}-${c.endTime} ${c.location||''}`.trim()+` · 还有 ${c.remindMinutes} 分钟`,'class',c.id,`class:${c.id}:${start.toISOString()}`,fireAt))}}
+ for(const e of exams){const start=combineDateTime(e.date,e.startTime),offsets=[e.remindMinutes,...(settings.examAlsoHourBefore&&e.remindMinutes!==60?[60]:[])];for(const minutes of offsets){const fireAt=start.getTime()-minutes*60000;if(minutes>0&&fireAt>now)slots.push(reminder(`考试提醒 · ${e.name}`,`${e.date} ${e.startTime}${e.endTime?`-${e.endTime}`:''} · ${minutes>=1440?`${Math.round(minutes/1440)} 天后`:`${minutes} 分钟后`}开考`,'exam',e.id,`exam:${e.id}:${minutes}:${e.date}T${e.startTime}`,fireAt))}}
+ for(const t of todos){if(t.done||!t.dueDate||!t.dueTime||t.remindMinutes<=0)continue;const start=combineDateTime(t.dueDate,t.dueTime),fireAt=start.getTime()-t.remindMinutes*60000;if(fireAt>now)slots.push(reminder(`待办提醒 · ${t.title}`,`${t.dueDate} ${t.dueTime} 到期`,'todo',t.id,`todo:${t.id}:${t.dueDate}T${t.dueTime}`,fireAt))}
+ for(const s of selfSchedules){for(let w=0;w<weeksAhead;w++){const start=nextSelfDate(s,w),fireAt=start.getTime()-s.remindMinutes*60000;if(s.remindMinutes>0&&fireAt>now)slots.push(reminder(`自我管理提醒 · ${s.title}`,`${s.startTime}-${s.endTime}${s.note?` · ${s.note}`:''}`,'self',s.id,`self:${s.id}:${start.toISOString()}`,fireAt))}}
+ for(const e of events){for(const start of eventOccurrences(e,weeksAhead)){const fireAt=start.getTime()-e.remindMinutes*60000;if(e.remindMinutes>0&&fireAt>now)slots.push(reminder(`日程提醒 · ${e.title}`,`${e.date} ${e.startTime}${e.endTime?`-${e.endTime}`:''}${e.location?` · ${e.location}`:''}`,'event',e.id,`event:${e.id}:${start.toISOString()}`,fireAt))}}
+ return slots.sort((a,b)=>a.fireAt-b.fireAt).slice(0,96)}

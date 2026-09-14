@@ -109,8 +109,8 @@ function parseCellCourse(
   const nameParts: string[] = []
 
   for (const line of lines) {
-    if (/周/.test(line) && /\d/.test(line) && line.length <= 20) {
-      weeks = line
+    if ((/单周|双周/.test(line) || (/周/.test(line) && /\d/.test(line))) && line.length <= 24) {
+      weeks = weeks ? `${weeks} ${line}` : line
       continue
     }
     if (/教室|教学楼|号楼|实验|机房|[A-Za-z]?\d{2,4}/.test(line) && line.length <= 24) {
@@ -243,8 +243,12 @@ function parseExamList(rows: string[][], remindMinutes: number, warnings: string
   const locCol = findCol(headers, LOC_KEYS)
   const kindCol = findCol(headers, KIND_KEYS)
   const seatCol = findCol(headers, SEAT_KEYS)
+  const dayCol = findCol(headers, WEEKDAY_KEYS)
   if (nameCol < 0 || dateCol < 0) return []
-  if (!examLike && !/考试日期|开考/.test(joined)) return []
+  if (dayCol >= 0 && !examLike) return []
+
+  const startCol = findCol(headers, START_KEYS)
+  const endCol = findCol(headers, END_KEYS)
 
   const exams: Exam[] = []
   for (let r = 1; r < rows.length; r++) {
@@ -257,8 +261,15 @@ function parseExamList(rows: string[][], remindMinutes: number, warnings: string
     }
     const timeRaw = timeCol >= 0 ? cell(row[timeCol]) : ''
     const range = parseTimeRange(timeRaw)
-    const start = range?.start || parsePeriodHint(timeRaw)?.start || '09:00'
-    const end = range?.end || parsePeriodHint(timeRaw)?.end
+    const start =
+      range?.start ||
+      (startCol >= 0 ? parseClock(cell(row[startCol])) : null) ||
+      parsePeriodHint(timeRaw)?.start ||
+      '09:00'
+    const end =
+      range?.end ||
+      (endCol >= 0 ? parseClock(cell(row[endCol])) : null) ||
+      parsePeriodHint(timeRaw)?.end
     exams.push({
       id: uid(),
       name,
@@ -365,6 +376,12 @@ export function sampleGridCsv(): string {
   return [header, row1, row2]
     .map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(','))
     .join('\n')
+}
+
+export function sortExams(exams: Exam[]): Exam[] {
+  return [...exams].sort(
+    (a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime) || a.name.localeCompare(b.name),
+  )
 }
 
 export function sampleExamCsv(): string {

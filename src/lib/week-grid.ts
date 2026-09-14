@@ -147,12 +147,183 @@ export function visibleHours(hiddenHours: number[] = []): number[] {
   return hours.length ? hours : [8]
 }
 
+export type HiddenHourRun = { start: number; end: number }
+
+/** Contiguous hidden hour blocks, used to draw “展开” arrows. */
+export function hiddenHourRuns(hiddenHours: number[] = []): HiddenHourRun[] {
+  const hide = new Set(hiddenHours.filter((h) => h >= 0 && h <= 23))
+  const runs: HiddenHourRun[] = []
+  let hour = 0
+  while (hour <= 23) {
+    if (!hide.has(hour)) {
+      hour += 1
+      continue
+    }
+    const start = hour
+    while (hour <= 23 && hide.has(hour)) hour += 1
+    runs.push({ start, end: hour - 1 })
+  }
+  return runs
+}
+
+export function hoursInRun(run: HiddenHourRun): number[] {
+  const hours: number[] = []
+  for (let hour = run.start; hour <= run.end; hour += 1) hours.push(hour)
+  return hours
+}
+
+export function hiddenHourRunLabel(run: HiddenHourRun): string {
+  if (run.start === 0 && run.end >= 4 && run.end <= 6) return '凌晨'
+  if (run.start === run.end) return `${String(run.start).padStart(2, '0')}时`
+  return `${String(run.start).padStart(2, '0')}–${String(run.end).padStart(2, '0')}时`
+}
+
+/** Y position of an expand chip: top of the gap, or just after the last visible hour. */
+export function hiddenHourRunTop(run: HiddenHourRun, hiddenHours: number[], hourPx: number): number {
+  const hours = visibleHours(hiddenHours)
+  const before = hours.filter((hour) => hour < run.start)
+  if (before.length === 0) return 0
+  return before.length * hourPx
+}
+
 export function hourMarksFromHidden(hiddenHours: number[] = []): { hour: number; minutes: number; label: string }[] {
   return visibleHours(hiddenHours).map((hour) => ({
     hour,
     minutes: hour * 60,
     label: hour === 0 ? '00:00' : clockFromMinutes(hour * 60),
   }))
+}
+
+export type TimeAxisMark = {
+  minutes: number
+  label: string
+  kind: 'event' | 'hour'
+}
+
+/** Left gutter is a timeline: labels follow class start/end, not only :00. */
+export type TimeAxis = {
+  hiddenHours: number[]
+  hourPx: number
+  originMin: number
+  endMin: number
+  marks: TimeAxisMark[]
+}
+
+function clockMinutes(raw?: string): number | null {
+  if (!raw) return null
+  if (raw === '23:59') return FULL_DAY_END_MIN
+  const mins = minutesOf(raw)
+  return Number.isFinite(mins) ? mins : null
+}
+
+function minuteVisible(mins: number, hiddenHours: number[]): boolean {
+  if (mins >= FULL_DAY_END_MIN) return !hiddenHours.includes(23)
+  const hour = Math.min(23, Math.floor(mins / 60))
+  if (mins > 0 && mins % 60 === 0) {
+    const prev = mins / 60 - 1
+    return !hiddenHours.includes(hour) || (prev >= 0 && !hiddenHours.includes(prev))
+  }
+  return !hiddenHours.includes(hour)
+}
+
+function thinMinutes(values: number[], minGap = 12): number[] {
+  const sorted = [...new Set(values)].sort((a, b) => a - b)
+  if (sorted.length <= 1) return sorted
+  const kept: number[] = [sorted[0]]
+  for (let i = 1; i < sorted.length - 1; i += 1) {
+    if (sorted[i] - kept[kept.length - 1] >= minGap) kept.push(sorted[i])
+  }
+  const last = sorted[sorted.length - 1]
+  if (last - kept[kept.length - 1] < minGap && kept.length > 1) kept[kept.length - 1] = last
+  else if (last !== kept[kept.length - 1]) kept.push(last)
+  return kept
+}
+
+export function buildTimeAxis(input: {
+  hiddenHours?: number[]
+  hourPx?: number
+  courses?: { startTime: string; endTime: string }[]
+  exams?: { startTime: string; endTime?: string }[]
+}): TimeAxis {
+  const hiddenHours = input.hiddenHours || []
+  const hourPx = input.hourPx ?? HOUR_PX
+  const hours = visibleHours(hiddenHours)
+  const fallbackOrigin = hours[0] * 60
+  const fallbackEnd = Math.min(FULL_DAY_END_MIN, hours[hours.length - 1] * 60 + 60)
+
+  const eventMins: number[] = []
+  for (const course of input.courses || []) {
+    const start = clockMinutes(course.startTime)
+    const end = clockMinutes(course.endTime)
+    if (start != null) eventMins.push(start)
+    if (end != null) eventMins.push(end)
+  }
+  for (const exam of input.exams || []) {
+    const start = clockMinutes(exam.startTime)
+    const end = clockMinutes(exam.endTime || exam.startTime)
+    if (start != null) eventMins.push(start)
+    if (end != null) eventMins.push(end)
+  }
+  const visibleEvents = eventMins.filter((mins) => mins >= 0 && mins <= FULL_DAY_END_MIN && minuteVisible(mins, hiddenHours))
+
+  if (visibleEvents.length === 0) {
+    return {
+      hiddenHours,
+      hourPx,
+      originMin: fallbackOrigin,
+      endMin: fallbackEnd,
+      marks: hourMarksFromHidden(hiddenHours).map((mark) => ({
+        minutes: mark.minutes,
+        label: mark.label,
+        kind: 'hour',
+      })),
+    }
+  }
+
+  const originMin = Math.min(...visibleEvents)
+  const endMin = Math.max(...visibleEvents)
+  const eventSet = new Set(thinMinutes(visibleEvents, 12))
+  const marks: TimeAxisMark[] = [...eventSet].map((minutes) => ({
+    minutes,
+    label: minutes >= FULL_DAY_END_MIN ? '23:59' : clockFromMinutes(minutes),
+    kind: 'event',
+  }))
+  for (const hour of hours) {
+    const minutes = hour * 60
+    if (minutes < originMin || minutes > endMin) continue
+    if ([...eventSet].some((event) => Math.abs(event - minutes) < 20)) continue
+    marks.push({ minutes, label: clockFromMinutes(minutes), kind: 'hour' })
+  }
+  marks.sort((a, b) => a.minutes - b.minutes)
+  return { hiddenHours, hourPx, originMin, endMin, marks }
+}
+
+export function axisOffset(mins: number, axis: TimeAxis): number {
+  return (
+    visibleOffset(mins, axis.hiddenHours, axis.hourPx) - visibleOffset(axis.originMin, axis.hiddenHours, axis.hourPx)
+  )
+}
+
+export function axisHeight(axis: TimeAxis): number {
+  return Math.max(axis.hourPx / 2, axisOffset(axis.endMin, axis))
+}
+
+export function axisRunTop(run: HiddenHourRun, axis: TimeAxis): number {
+  return hiddenHourRunTop(run, axis.hiddenHours, axis.hourPx) - visibleOffset(axis.originMin, axis.hiddenHours, axis.hourPx)
+}
+
+export function minutesFromAxisOffset(offsetY: number, axis: TimeAxis): number {
+  const target = offsetY + visibleOffset(axis.originMin, axis.hiddenHours, axis.hourPx)
+  const hours = visibleHours(axis.hiddenHours)
+  let y = 0
+  for (const hour of hours) {
+    if (target <= y + axis.hourPx) {
+      const within = Math.max(0, target - y)
+      return hour * 60 + (within / axis.hourPx) * 60
+    }
+    y += axis.hourPx
+  }
+  return Math.min(FULL_DAY_END_MIN, hours[hours.length - 1] * 60 + 60)
 }
 
 export function visibleOffset(mins: number, hiddenHours: number[], hourPx: number): number {
@@ -195,25 +366,33 @@ export function slotFromOffset(
   hiddenHours: number[],
   hourPx: number,
   duration = 90,
+  axis?: TimeAxis,
 ): { startTime: string; endTime: string } {
-  const hours = visibleHours(hiddenHours)
-  let y = 0
-  for (const hour of hours) {
-    if (offsetY <= y + hourPx) {
-      const within = Math.max(0, offsetY - y)
-      const start = Math.max(0, Math.min(FULL_DAY_END_MIN - 30, snapMinutes(hour * 60 + (within / hourPx) * 60)))
-      const end = Math.min(FULL_DAY_END_MIN, start + duration)
-      return { startTime: clockFromMinutes(start), endTime: end === FULL_DAY_END_MIN ? '23:59' : clockFromMinutes(end) }
+  const raw = axis ? minutesFromAxisOffset(offsetY, axis) : (() => {
+    const hours = visibleHours(hiddenHours)
+    let y = 0
+    for (const hour of hours) {
+      if (offsetY <= y + hourPx) {
+        const within = Math.max(0, offsetY - y)
+        return hour * 60 + (within / hourPx) * 60
+      }
+      y += hourPx
     }
-    y += hourPx
-  }
-  const last = hours[hours.length - 1] * 60
-  return { startTime: clockFromMinutes(last), endTime: clockFromMinutes(Math.min(FULL_DAY_END_MIN, last + 60)) }
+    return hours[hours.length - 1] * 60
+  })()
+  const step = axis && axis.marks.some((mark) => mark.kind === 'event') ? 5 : 30
+  const start = Math.max(0, Math.min(FULL_DAY_END_MIN - 15, snapMinutes(raw, step)))
+  const end = Math.min(FULL_DAY_END_MIN, start + duration)
+  return { startTime: clockFromMinutes(start), endTime: end === FULL_DAY_END_MIN ? '23:59' : clockFromMinutes(end) }
 }
 
-export function nowLineTop(now: Date, hiddenHours: number[], hourPx: number): number | null {
+export function nowLineTop(now: Date, hiddenHours: number[], hourPx: number, axis?: TimeAxis): number | null {
   const mins = now.getHours() * 60 + now.getMinutes()
   if (hiddenHours.includes(now.getHours())) return null
+  if (axis) {
+    if (mins < axis.originMin || mins > axis.endMin) return null
+    return axisOffset(mins, axis)
+  }
   return visibleOffset(mins, hiddenHours, hourPx)
 }
 
@@ -221,6 +400,7 @@ export function layoutDayCourses(
   courses: Course[],
   hiddenHours: number[],
   hourPx: number,
+  axis?: TimeAxis,
 ): LaidOutCourse[] {
   const items = courses
     .map((course) => ({
@@ -262,8 +442,8 @@ export function layoutDayCourses(
     }
     const cols = Math.max(1, columns.length)
     for (const { item, col } of assigned) {
-      const top = visibleOffset(item.start, hiddenHours, hourPx)
-      const bottom = visibleOffset(item.end, hiddenHours, hourPx)
+      const top = axis ? axisOffset(item.start, axis) : visibleOffset(item.start, hiddenHours, hourPx)
+      const bottom = axis ? axisOffset(item.end, axis) : visibleOffset(item.end, hiddenHours, hourPx)
       const height = bottom - top
       if (height < 8) continue
       result.push({

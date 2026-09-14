@@ -49,9 +49,25 @@ Standard scripts are defined in `package.json`:
   通义千问 `qwen-vl-max`). Vite proxies `/api/days` to `https://www.yydsxwh.com`
   in `npm run dev`. Sample files live in `public/samples/`.
   Parser self-test: `npm run test:timetable` (import + week-grid layout).
-  The `#schedule` week view is an Excel-like grid: columns are
-  weekdays, rows are 00:00–23:59. Dawn hours 00–05 are hidden by
-  default and can be toggled in 课表设置. Terms live in
+  Photo import resizes to JPEG ≤1600px before `POST /api/days/timetable-ocr`
+  (phone originals often fail the first vision call). HEIC is rejected with
+  a “导出 JPG” hint. Hydrate also accepts `weekday: 周一` and
+  `startTime: 第1-2节`. Prefer `weekdayLabel` / `dayHeaders+slots.cells`
+  over a weekday number — models often treat the 节次 column as weekday 1
+  and shift 星期一 onto Tuesday. Packed rooms like `教一1506/1-2节/1-16周`
+  are split into location + weeks (keep 单周/双周). Live OCR changes are
+  patched into `.next/server/app/api/days/timetable-ocr/route.js` plus
+  `packages/mathcode/lib/timetable-ocr.ts`; do not full-rebuild Next on
+  this 3.4GB box while PM2 is up. Hidden dawn rows expand from a ▾ chip in the
+  时间 header — do not put 隐藏 on weekday columns.   There is no standalone 「导入」 tab. Course import lives
+  on 周课表 (拍教务处课表 / xlsx / csv); exam import lives
+  on 考试时间表 and writes a date-sorted table.   Import
+  infers class periods from printed clocks (e.g. 08:30) and hides hours
+  outside the first/last class. The week-grid left gutter is a timeline:
+  ticks follow imported class start/end clocks (08:30, 09:30, 11:30),
+  not only whole hours, and the visible range clips to the first start
+  through the last end. Do not feed inferred 45-minute 小节 splits into
+  those ticks. Terms live in
   `AppData.terms` (学年 / 第1·2学期 / 寒暑假小学期 / 社会实践 /
   实习). Import writes into the current term. `npm run test:timetable`
   covers import + week-grid hide/layout.
@@ -70,14 +86,6 @@ Standard scripts are defined in `package.json`:
   `packages/shared/src/software-products.ts` (`kemiao-days` + `actions`).
   `scripts/deploy-days.sh` also uploads `kemiao-days.apk` when a local
   debug APK exists.
-  Android APK must not fall through the SPA `try_files` → `index.html`
-  (that downloads HTML named `.apk` and looks like 下载失败). Live nginx
-  uses an exact `location = /products/days/kemiao-days.apk` from
-  `scripts/nginx-kemiao-days-apk.conf`: Android MIME, `gzip off`,
-  `Content-Disposition: attachment`. The products-page button must not
-  use an empty `<a download>` for the APK — Android Chrome then fetches
-  a blob and the first save often fails; second click then works. Omit
-  `download` on `.apk` links and let the browser use the nginx header.
 - SSH: `admin@47.242.157.181` with key file `~/.ssh/yyds_aliyun` (Aliyun
   console key name may show as `cursor`; key comment is `yyds-deploy`).
   Never write the private key into the repo or paste it into chat. If a key

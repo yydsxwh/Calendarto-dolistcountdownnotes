@@ -756,7 +756,7 @@ select.input {
 .week-tt-head,
 .week-tt-body {
   display: grid;
-  grid-template-columns: 48px repeat(7, minmax(0, 1fr));
+  grid-template-columns: 54px repeat(7, minmax(0, 1fr));
 }
 
 .week-tt-head {
@@ -772,6 +772,13 @@ select.input {
   text-align: center;
   font-size: 12px;
   border-bottom: 1px solid var(--line);
+}
+
+.week-tt-gutter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 
 .week-tt-h {
@@ -824,6 +831,17 @@ select.input {
   line-height: 1.2;
   color: var(--muted);
   text-align: right;
+  transform: translateY(-2px);
+}
+
+.week-tt-hour.is-event {
+  color: #9d174d;
+  font-weight: 650;
+}
+
+.week-tt-hour.is-hour {
+  font-size: 10px;
+  opacity: 0.72;
 }
 
 .week-tt-line {
@@ -831,6 +849,10 @@ select.input {
   left: 0;
   right: 0;
   border-top: 1px dashed rgba(225, 29, 72, 0.12);
+}
+
+.week-tt-line.is-event {
+  border-top-color: rgba(225, 29, 72, 0.28);
 }
 
 .week-tt-course,
@@ -886,6 +908,35 @@ select.input {
   color: var(--muted);
   font-size: 10px;
   padding: 0;
+}
+
+.week-tt-restore {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 8px 8px;
+}
+
+.week-tt-expand {
+  border: 1px dashed rgba(225, 29, 72, 0.28);
+  background: #fff5f7;
+  color: #e11d48;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 4px 8px;
+}
+
+.week-tt-expand-hour {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  z-index: 3;
+  padding: 4px 2px;
+  font-size: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .week-tt-hour {

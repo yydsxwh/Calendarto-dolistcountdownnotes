@@ -14,31 +14,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-
       - name: Install dependencies
         run: npm install
-
       - name: Build web
         run: npm run build
-
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '21'
-
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-
       - name: Install Android SDK packages
         run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
-
       - name: Build Android APK
         run: |
           npm run build:android
@@ -46,14 +39,12 @@ jobs:
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
-
       - name: Prepare deployment bundle
         run: |
           mkdir -p deploy
           cp -a dist/. deploy/
           cp android/app/build/outputs/apk/debug/app-debug.apk deploy/kemiao-days.apk
           tar -czf days-deploy.tgz -C deploy .
-
       - name: Upload to Hong Kong server
         env:
           SERVER_HOST: ${{ secrets.SERVER_HOST }}
@@ -66,11 +57,10 @@ jobs:
           test -n "$SERVER_SSH_KEY"
           printf '%s\n' "$SERVER_SSH_KEY" > deploy_key
           chmod 600 deploy_key
-          ssh -i deploy_key -p "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" 'mkdir -p /var/www/yyds-course-platform/public/products/days && mkdir -p /var/www/yyds-course-platform/public/products/days/releases'
+          ssh -i deploy_key -p "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" 'mkdir -p /var/www/yyds-course-platform/public/products/days'
           scp -i deploy_key -P "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no days-deploy.tgz "$SERVER_USER@$SERVER_HOST:/tmp/days-deploy.tgz"
-          ssh -i deploy_key -p "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" 'set -e; rm -rf /tmp/days-release; mkdir -p /tmp/days-release; tar -xzf /tmp/days-deploy.tgz -C /tmp/days-release; rm -rf /var/www/yyds-course-platform/public/products/days/*; cp -a /tmp/days-release/. /var/www/yyds-course-platform/public/products/days/; cp /tmp/days-release/kemiao-days.apk /var/www/yyds-course-platform/public/products/days/kemiao-days.apk; rm -rf /tmp/days-release /tmp/days-deploy.tgz'
+          ssh -i deploy_key -p "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" 'set -e; rm -rf /tmp/days-release; mkdir -p /tmp/days-release; tar -xzf /tmp/days-deploy.tgz -C /tmp/days-release; rm -rf /var/www/yyds-course-platform/public/products/days/*; cp -a /tmp/days-release/. /var/www/yyds-course-platform/public/products/days/; rm -rf /tmp/days-release /tmp/days-deploy.tgz'
           rm -f deploy_key
-
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -111,10 +101,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install dependencies and iOS platform
-        run: npm install && npm install @capacitor/ios@^8.5.2 && npx cap add ios || true
+      - name: Install dependencies
+        run: npm install
+      - name: Create iOS platform
+        run: npx cap add ios || true
       - name: Build web and sync iOS
-        run: npm run build:android && npx cap sync ios
+        run: npm run build && npx cap sync ios
       - name: Archive iOS project
         run: zip -qr days-ios-project.zip ios
       - name: Upload iOS project

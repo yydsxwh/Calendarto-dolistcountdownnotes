@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "description": "颗秒日事：日历、待办、倒数日和便签一体的本地优先网页应用",
+  "main": "desktop/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -12,12 +13,14 @@
     "test:timetable": "npx --yes tsx src/lib/timetable-import.selftest.ts && npx --yes tsx src/lib/week-grid.selftest.ts",
     "deploy:days": "bash scripts/deploy-days.sh",
     "build:android": "tsc -b && vite build --base=./ && npx cap sync android",
-    "android:apk": "bash scripts/build-android-apk.sh"
+    "android:apk": "bash scripts/build-android-apk.sh",
+    "desktop:win": "npm run build && electron-builder --win --x64 --publish never"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
     "@capacitor/cli": "^8.5.2",
     "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
     "@capacitor/local-notifications": "^8.3.1",
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.3",
@@ -31,6 +34,8 @@
     "@types/react": "^18.3.10",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.2",
+    "electron": "^38.1.0",
+    "electron-builder": "^26.0.12",
     "eslint": "^9.11.1",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.12",
@@ -38,5 +43,13 @@
     "typescript": "^5.6.2",
     "typescript-eslint": "^8.7.0",
     "vite": "^5.4.8"
+  },
+  "build": {
+    "appId": "com.yydsxwh.kemiao.days",
+    "productName": "颗秒日事",
+    "directories": { "output": "release" },
+    "files": ["dist/**/*", "desktop/**/*", "package.json"],
+    "win": { "target": [{ "target": "nsis", "arch": ["x64"] }] },
+    "nsis": { "oneClick": false, "perMachine": false, "allowToChangeInstallationDirectory": true }
   }
 }

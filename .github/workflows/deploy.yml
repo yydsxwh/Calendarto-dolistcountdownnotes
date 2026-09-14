@@ -9,8 +9,103 @@ permissions:
   contents: read
 
 jobs:
-  web-and-android:
+  web:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install
+      - name: Build web
+        run: npm run build
+      - name: Prepare web bundle
+        run: tar -czf days-web.tgz -C dist .
+      - name: Upload web to Hong Kong server
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+        run: |
+          set -e
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          test -n "$SERVER_SSH_KEY"
+          printf '%s\n' "$SERVER_SSH_KEY" > deploy_key
+          chmod 600 deploy_key
+          ssh -i deploy_key -p "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" 'mkdir -p /var/www/yyds-course-platform/public/products/days'
+          scp -i deploy_key -P "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no days-web.tgz "$SERVER_USER@$SERVER_HOST:/tmp/days-web.tgz"
+          ssh -i deploy_key -p "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" 'set -e; rm -rf /tmp/days-web-release; mkdir -p /tmp/days-web-release; tar -xzf /tmp/days-web.tgz -C /tmp/days-web-release; find /var/www/yyds-course-platform/public/products/days -mindepth 1 -maxdepth 1 ! -name "kemiao-days.apk" ! -name "kemiao-days-windows.exe" -exec rm -rf {} +; cp -a /tmp/days-web-release/. /var/www/yyds-course-platform/public/products/days/; rm -rf /tmp/days-web-release /tmp/days-web.tgz'
+          rm -f deploy_key
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: days-web
+          path: dist
+
+  desktop-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm install
+      - name: Build web
+        run: npm run build
+      - name: Package Windows desktop
+        shell: pwsh
+        run: npx --yes electron-builder --win --x64 --publish never
+      - name: Rename installer
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem release -Filter '*.exe' | Select-Object -First 1
+          if (-not $exe) { throw 'Windows installer was not produced' }
+          Copy-Item $exe.FullName release/kemiao-days-windows.exe -Force
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: days-windows
+          path: release/kemiao-days-windows.exe
+
+  deploy-windows:
+    needs: desktop-windows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows installer
+        uses: actions/download-artifact@v4
+        with:
+          name: days-windows
+          path: release
+      - name: Upload Windows installer to Hong Kong server
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+        run: |
+          set -e
+          test -n "$SERVER_HOST"
+          test -n "$SERVER_USER"
+          test -n "$SERVER_SSH_KEY"
+          printf '%s\n' "$SERVER_SSH_KEY" > deploy_key
+          chmod 600 deploy_key
+          ssh -i deploy_key -p "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" 'mkdir -p /var/www/yyds-course-platform/public/products/days'
+          scp -i deploy_key -P "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no release/kemiao-days-windows.exe "$SERVER_USER@$SERVER_HOST:/var/www/yyds-course-platform/public/products/days/kemiao-days-windows.exe"
+          rm -f deploy_key
+
+  android:
+    runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -38,80 +133,13 @@ jobs:
           printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > android/local.properties
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
-      - name: Prepare deployment bundle
-        run: |
-          mkdir -p deploy
-          cp -a dist/. deploy/
-          cp android/app/build/outputs/apk/debug/app-debug.apk deploy/kemiao-days.apk
-          tar -czf days-deploy.tgz -C deploy .
-      - name: Upload web and Android to Hong Kong server
-        env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_PORT: ${{ secrets.SERVER_PORT }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
-        run: |
-          test -n "$SERVER_HOST"
-          test -n "$SERVER_USER"
-          test -n "$SERVER_SSH_KEY"
-          printf '%s\n' "$SERVER_SSH_KEY" > deploy_key
-          chmod 600 deploy_key
-          ssh -i deploy_key -p "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" 'mkdir -p /var/www/yyds-course-platform/public/products/days'
-          scp -i deploy_key -P "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no days-deploy.tgz "$SERVER_USER@$SERVER_HOST:/tmp/days-deploy.tgz"
-          ssh -i deploy_key -p "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no "$SERVER_USER@$SERVER_HOST" 'set -e; rm -rf /tmp/days-release; mkdir -p /tmp/days-release; tar -xzf /tmp/days-deploy.tgz -C /tmp/days-release; rm -rf /var/www/yyds-course-platform/public/products/days/*; cp -a /tmp/days-release/. /var/www/yyds-course-platform/public/products/days/; rm -rf /tmp/days-release /tmp/days-deploy.tgz'
-          rm -f deploy_key
-      - name: Upload build artifacts
+          ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Upload Android artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: days-web-and-android
-          path: |
-            dist
-            android/app/build/outputs/apk/debug/app-debug.apk
-
-  desktop-windows:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - name: Install dependencies
-        run: npm install
-      - name: Build web
-        run: npm run build
-      - name: Package Windows desktop
-        shell: pwsh
-        run: npx --yes electron-builder --win --x64 --publish never
-      - name: Rename installer
-        shell: pwsh
-        run: |
-          $exe = Get-ChildItem release -Filter '*.exe' | Select-Object -First 1
-          if (-not $exe) { throw 'Windows installer was not produced' }
-          Copy-Item $exe.FullName release/kemiao-days-windows.exe -Force
-      - name: Upload Windows installer to Hong Kong server
-        shell: pwsh
-        env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_PORT: ${{ secrets.SERVER_PORT }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
-        run: |
-          $key = Join-Path $env:RUNNER_TEMP 'deploy_key'
-          Set-Content -Path $key -Value $env:SERVER_SSH_KEY -NoNewline
-          icacls $key /inheritance:r /grant:r "$env:USERNAME:(R)" | Out-Null
-          $port = if ($env:SERVER_PORT) { $env:SERVER_PORT } else { '22' }
-          ssh -i $key -p $port -o IdentitiesOnly=yes -o StrictHostKeyChecking=no "$env:SERVER_USER@$env:SERVER_HOST" "mkdir -p /var/www/yyds-course-platform/public/products/days"
-          scp -i $key -P $port -o IdentitiesOnly=yes -o StrictHostKeyChecking=no release/kemiao-days-windows.exe "$env:SERVER_USER@$env:SERVER_HOST`:/var/www/yyds-course-platform/public/products/days/kemiao-days-windows.exe"
-          Remove-Item $key -Force
-      - name: Upload Windows installer artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: days-windows
-          path: release/*
+          name: days-android
+          path: android/app/build/outputs/apk/debug/app-debug.apk
 
   ios-project:
     runs-on: macos-latest

@@ -189,7 +189,9 @@ export default function ScheduleSettings({
 
         {panel === 'periods' && (
           <div className="tt-drawer-pane">
-            <p className="muted">导入表格或照片里写「第 1-2 节」时，按这里的上课时间换算成钟点。</p>
+            <p className="muted">
+              导入课表后，左侧时间轴按开课、下课钟点标刻度，不必从整点开始。这里的「第 N 节」只用来把表格里的节次换成钟点。
+            </p>
             {view.classPeriods.map((period, index) => (
               <div key={`${period.start}-${index}`} className="row wrap">
                 <span className="tt-period-idx">第{index + 1}节</span>

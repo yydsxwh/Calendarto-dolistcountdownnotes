@@ -1,0 +1,32 @@
+[Unit]
+Description=颗秒日事 云同步服务
+Documentation=https://www.yydsxwh.com/products/days/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/node /opt/kemiao-days-sync/index.mjs
+Environment=DAYS_SYNC_PORT=3120
+Environment=DAYS_SYNC_HOST=127.0.0.1
+Environment=DAYS_SYNC_DATA_DIR=/var/lib/kemiao-days
+Environment=DAYS_SYNC_SESSION_URL=https://www.yydsxwh.com/api/auth/session
+Environment=DAYS_SYNC_ALLOWED_ORIGINS=https://www.yydsxwh.com
+Restart=always
+RestartSec=3
+
+# 这个服务只需要读自己的代码和写自己的数据目录，其余一律不给。
+User=www-data
+Group=www-data
+StateDirectory=kemiao-days
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/kemiao-days
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

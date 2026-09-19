@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: npm install
       - name: Build web
-        run: npm run build
+        run: npx vite build --base=/products/days/
       - name: Prepare web bundle
         run: tar -czf days-web.tgz -C dist .
       - name: Upload web to Hong Kong server

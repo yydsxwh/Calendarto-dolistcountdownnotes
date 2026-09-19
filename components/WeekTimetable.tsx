@@ -65,7 +65,7 @@ function selectedDayIndex(days: WeekDayColumn[], day: WeekDayColumn) {
   return days.findIndex((item) => item.iso === day.iso)
 }
 
-function DayColumn({ day, courses, exams, hiddenHours, marks, nowTop, selectedId, selectedDayIso, selectedRowTop, offWeekIds, onSelectCourse, onSelectSlot }: {
+function DayColumn({ day, courses, exams, hiddenHours, marks, nowTop, selectedId, offWeekIds, onSelectCourse, onSelectSlot }: {
   day: WeekDayColumn; courses: Course[]; exams: Exam[]; hiddenHours: number[]; marks: { hour: number; minutes: number; label: string }[]; nowTop: number | null; selectedId?: string; selectedDayIso?: string; selectedRowTop: number | null; offWeekIds?: Set<string>
   onSelectCourse: (course: Course) => void; onSelectSlot: (next: { weekday: number; startTime: string; endTime: string }) => void
 }) {

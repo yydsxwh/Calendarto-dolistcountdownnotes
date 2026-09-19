@@ -1,0 +1,154 @@
+import { useEffect, useRef, useState } from 'react'
+import { ACCOUNT_CENTER_URL, avatarInitial, loginUrl, logoutUrl } from '../lib/site-session'
+import type { CloudSync } from '../hooks/useCloudSync'
+import type { AppData } from '../types'
+
+const STATE_TEXT: Record<CloudSync['state'], string> = {
+  starting: '正在检查登录…',
+  signedOut: '未登录，数据只存在这台设备',
+  syncing: '正在同步…',
+  synced: '已同步到云端',
+  offline: '云端连不上，改动已存在本机',
+  error: '同步出错，改动已存在本机',
+  localOnly: '手机 / 桌面客户端暂时只存在本机',
+}
+
+function syncTone(state: CloudSync['state'], pending: boolean): string {
+  if (state === 'offline' || state === 'error') return 'warn'
+  if (state === 'syncing' || pending) return 'busy'
+  if (state === 'synced') return 'ok'
+  return 'idle'
+}
+
+function relativeTime(at: number | null): string {
+  if (!at) return ''
+  const seconds = Math.round((Date.now() - at) / 1000)
+  if (seconds < 60) return '刚刚'
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟前`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小时前`
+  return `${Math.floor(seconds / 86400)} 天前`
+}
+
+export default function AccountCenter({ sync, data }: { sync: CloudSync; data: AppData }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onAway = (event: MouseEvent) => {
+      if (!wrapRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const onEsc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onAway)
+    document.addEventListener('keydown', onEsc)
+    return () => {
+      document.removeEventListener('mousedown', onAway)
+      document.removeEventListener('keydown', onEsc)
+    }
+  }, [open])
+
+  const { user, state, pendingChanges, lastSyncedAt } = sync
+  const tone = syncTone(state, pendingChanges)
+
+  // 壳里点登录也拿不到主站会话，不如直接指向网页版，别给一个按下去没反应的按钮。
+  if (state === 'localOnly') {
+    return (
+      <div className="account-wrap" ref={wrapRef}>
+        <a
+          className="btn ghost slim"
+          href="https://www.yydsxwh.com/products/days/"
+          target="_blank"
+          rel="noreferrer"
+          title="手机 / 桌面客户端的数据只存在本机；想多端同步请用网页版登录"
+        >
+          本机模式
+        </a>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="account-wrap" ref={wrapRef}>
+        <a className="btn primary slim" href={loginUrl()}>
+          登录
+        </a>
+      </div>
+    )
+  }
+
+  const counts = [
+    { label: '待办', value: data.todos.filter((t) => !t.done).length },
+    { label: '倒数日', value: data.countdowns.length },
+    { label: '便签', value: data.notes.length },
+    { label: '课程', value: data.courses.length },
+    { label: '考试', value: data.exams.length },
+  ]
+
+  return (
+    <div className="account-wrap" ref={wrapRef}>
+      <button
+        className="avatar-btn"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-label={`个人中心：${user.name}`}
+        title={user.name}
+      >
+        {user.avatarUrl ? (
+          <img src={user.avatarUrl} alt="" />
+        ) : (
+          <span className="avatar-initial">{avatarInitial(user.name)}</span>
+        )}
+        <span className={`avatar-dot ${tone}`} aria-hidden />
+      </button>
+
+      {open && (
+        <div className="account-panel" role="dialog" aria-label="个人中心">
+          <header className="account-head">
+            {user.avatarUrl ? (
+              <img className="account-face" src={user.avatarUrl} alt="" />
+            ) : (
+              <span className="account-face initial">{avatarInitial(user.name)}</span>
+            )}
+            <div>
+              <strong>{user.name}</strong>
+              <p className="muted">统一账号 · 颗秒日事</p>
+            </div>
+          </header>
+
+          <div className={`sync-line ${tone}`}>
+            <span className="sync-dot" aria-hidden />
+            <div>
+              <strong>{pendingChanges && state !== 'syncing' ? '有改动待上传' : STATE_TEXT[state]}</strong>
+              {lastSyncedAt && <p className="muted">上次同步 {relativeTime(lastSyncedAt)}</p>}
+            </div>
+          </div>
+
+          <p className="account-hint">改动会自动存到云端，换台设备登录同一个账号就能接着用。</p>
+
+          <button className="btn primary block" onClick={sync.syncNow} disabled={state === 'syncing'}>
+            {state === 'syncing' ? '同步中…' : '立即同步'}
+          </button>
+
+          <dl className="account-stats">
+            {counts.map((c) => (
+              <div key={c.label}>
+                <dt>{c.label}</dt>
+                <dd>{c.value}</dd>
+              </div>
+            ))}
+          </dl>
+
+          <div className="account-links">
+            <a href={`${ACCOUNT_CENTER_URL}/`} target="_blank" rel="noreferrer">
+              账号中心设置
+            </a>
+            <a href={logoutUrl()}>退出登录</a>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

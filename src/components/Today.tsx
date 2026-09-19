@@ -1,10 +1,20 @@
+import { useState } from 'react'
 import { daysUntil, formatLong, nextOccurrence, startOfToday, toISODate } from '../lib/dates'
 import { jsWeekday } from '../lib/periods'
 import { upcomingClasses, upcomingExams } from '../lib/reminders'
+import {
+  draftFromRecurring,
+  emptyRecurringDraft,
+  extrasFromDraft,
+  formatRecurrenceRule,
+  upcomingRecurring,
+  type RecurringDraft,
+} from '../lib/recurrence'
 import { courseInTeachingWeek, courseInTerm, startOfWeek, teachingWeekNumber } from '../lib/week-grid'
 import { EXAM_KIND_LABEL } from '../types'
 import type { AppStore } from '../hooks/useAppStore'
 import type { View } from '../types'
+import RecurringReminderForm from './RecurringReminderForm'
 
 export default function Today({
   store,
@@ -17,6 +27,25 @@ export default function Today({
   const iso = toISODate(today)
   const hour = new Date().getHours()
   const hello = hour < 12 ? '早上好' : hour < 18 ? '下午好' : '晚上好'
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [draft, setDraft] = useState<RecurringDraft>(() => emptyRecurringDraft(iso))
+  const recurringRows = upcomingRecurring(store.data.recurringReminders, today, 8)
+
+  const closeForm = () => {
+    setFormOpen(false)
+    setEditingId(null)
+    setDraft(emptyRecurringDraft(iso))
+  }
+
+  const saveRecurring = () => {
+    const title = draft.title.trim()
+    if (!title || !draft.startDate) return
+    const extras = extrasFromDraft(draft)
+    if (editingId) store.updateRecurringReminder(editingId, { title, ...extras })
+    else store.addRecurringReminder(title, extras)
+    closeForm()
+  }
 
   const overdue = store.data.todos.filter(
     (t) => !t.done && t.dueDate && t.dueDate < iso,
@@ -50,6 +79,84 @@ export default function Today({
           {store.stats.examCount} 场考试 · {store.stats.noteCount} 条便签
         </p>
       </header>
+
+      <div className="recurring-cta-row">
+        <button
+          className="btn primary recurring-cta"
+          onClick={() => {
+            setEditingId(null)
+            setDraft(emptyRecurringDraft(iso))
+            setFormOpen(true)
+          }}
+        >
+          新建周期性提醒
+        </button>
+      </div>
+
+      {formOpen && (
+        <article className="card recurring-editor">
+          <div className="card-head">
+            <h3>{editingId ? '编辑周期性提醒' : '新建周期性提醒'}</h3>
+            <button className="link" onClick={closeForm}>
+              收起
+            </button>
+          </div>
+          <RecurringReminderForm
+            draft={draft}
+            onChange={setDraft}
+            onSubmit={saveRecurring}
+            onCancel={closeForm}
+            submitLabel={editingId ? '保存' : '创建'}
+          />
+        </article>
+      )}
+
+      <article className="card recurring-panel">
+        <div className="card-head">
+          <h3>周期性提醒</h3>
+          <span className="muted tiny">按规则计算下一场，不预先生成几十年数据</span>
+        </div>
+        {recurringRows.length === 0 && (
+          <p className="empty-inline">还没有周期提醒。可以设每 3 天、每 2 周、每 6 个月或每 10 年。</p>
+        )}
+        <ul className="mini-list">
+          {recurringRows.map(({ item, next }) => {
+            const d = daysUntil(next)
+            return (
+              <li key={item.id} className={item.enabled ? '' : 'is-paused'}>
+                <span>
+                  <strong>{item.title}</strong>
+                  <em>
+                    {formatRecurrenceRule(item.rule)}
+                    {item.remindTime ? ` · ${item.remindTime}` : ''}
+                    {' · '}
+                    {d === 0 ? '就是今天' : d > 0 ? `${next} · ${d} 天后` : next}
+                    {item.enabled ? '' : ' · 已暂停'}
+                  </em>
+                </span>
+                <span className="row wrap">
+                  <button
+                    className="link"
+                    onClick={() => {
+                      setEditingId(item.id)
+                      setDraft(draftFromRecurring(item))
+                      setFormOpen(true)
+                    }}
+                  >
+                    编辑
+                  </button>
+                  <button className="link" onClick={() => store.updateRecurringReminder(item.id, { enabled: !item.enabled })}>
+                    {item.enabled ? '暂停' : '启用'}
+                  </button>
+                  <button className="icon-btn" onClick={() => store.removeRecurringReminder(item.id)} aria-label="删除周期提醒">
+                    ✕
+                  </button>
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      </article>
 
       {upcoming[0] && (
         <article

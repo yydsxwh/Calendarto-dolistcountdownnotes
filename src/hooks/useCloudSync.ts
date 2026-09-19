@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { SyncConflict, SyncUnauthorized, SyncUnavailable, pullRemote, pushRemote } from '../lib/cloud-sync'
 import { fingerprint, isEmptyData, mergeAppData } from '../lib/sync-merge'
 import { fetchSiteUser, type SiteUser } from '../lib/site-session'
+import { isNativeApp } from '../lib/native'
 import type { AppData } from '../types'
 
 /**
@@ -15,6 +16,8 @@ export type SyncState =
   | 'synced'
   | 'offline'
   | 'error'
+  /** 手机 / 桌面壳：页面不在主站源下，拿不到登录态，只能本机保存。 */
+  | 'localOnly'
 
 export type CloudSync = {
   user: SiteUser | null
@@ -132,6 +135,14 @@ export function useCloudSync({ data, ready, replace }: Args): CloudSync {
   }, [adopt, settle])
 
   const loadUser = useCallback(async () => {
+    // 原生壳的页面来自本地包，不在 www.yydsxwh.com 源下，主站 Cookie 不会发过来。
+    // 与其反复请求再失败，不如直接说清楚现在只存在本机。
+    if (isNativeApp()) {
+      setUser(null)
+      setState('localOnly')
+      hydratedRef.current = true
+      return
+    }
     try {
       const nextUser = await fetchSiteUser()
       setUser(nextUser)

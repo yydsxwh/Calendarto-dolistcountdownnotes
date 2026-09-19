@@ -67,15 +67,69 @@ export function daysUntil(iso: string): number {
   return Math.round((target.getTime() - today.getTime()) / 86400000)
 }
 
-export function nextOccurrence(iso: string, repeatYearly: boolean): string {
+export function nextOccurrence(iso: string, repeatYearly: boolean, from: Date = startOfToday()): string {
   if (!repeatYearly) return iso
-  const today = startOfToday()
+  const today = startOfDay(from)
   const origin = parseISODate(iso)
   let next = new Date(today.getFullYear(), origin.getMonth(), origin.getDate())
   if (next < today) {
     next = new Date(today.getFullYear() + 1, origin.getMonth(), origin.getDate())
   }
   return toISODate(next)
+}
+
+export function daysSince(iso: string, today: Date = startOfToday()): number {
+  return Math.round((startOfDay(today).getTime() - parseISODate(iso).getTime()) / 86400000)
+}
+
+/** Completed years between two dates, e.g. 1998-06-01 -> 2026-05-31 is 27, not 28. */
+function completedYears(origin: Date, until: Date): number {
+  let years = until.getFullYear() - origin.getFullYear()
+  const anniversaryThisYear = new Date(until.getFullYear(), origin.getMonth(), origin.getDate())
+  if (anniversaryThisYear > until) years -= 1
+  return Math.max(0, years)
+}
+
+/**
+ * Both directions of one anchored day: how long since it happened and how long
+ * until it comes round again. 倒数日 and 纪念日 are the same record — a birthday
+ * is "已过 27 年" and "还有 12 天" at the same time.
+ */
+export type DayFacts = {
+  origin: string
+  /** Origin is strictly in the past. */
+  originPassed: boolean
+  /** Whole days since the origin; negative while the origin is still ahead. */
+  elapsedDays: number
+  /** Next time this day comes round; equals origin when it does not repeat. */
+  next: string
+  /** Whole days until `next`; negative for a one-off day already gone. */
+  daysToNext: number
+  /** There is still a future (or today) occurrence to count down to. */
+  hasUpcoming: boolean
+  /** Completed anniversaries so far. */
+  yearsSince: number
+  /** Which anniversary `next` will be; 0 when the day does not repeat. */
+  upcomingOrdinal: number
+}
+
+export function dayFacts(iso: string, repeatYearly: boolean, today: Date = startOfToday()): DayFacts {
+  const base = startOfDay(today)
+  const origin = parseISODate(iso)
+  const elapsedDays = daysSince(iso, base)
+  const next = repeatYearly ? nextOccurrence(iso, true, base) : iso
+  const daysToNext = Math.round((parseISODate(next).getTime() - base.getTime()) / 86400000)
+  const yearsSince = completedYears(origin, base)
+  return {
+    origin: iso,
+    originPassed: elapsedDays > 0,
+    elapsedDays,
+    next,
+    daysToNext,
+    hasUpcoming: daysToNext >= 0,
+    yearsSince,
+    upcomingOrdinal: repeatYearly ? completedYears(origin, parseISODate(next)) : 0,
+  }
 }
 
 export function monthCells(view: Date): (Date | null)[] {

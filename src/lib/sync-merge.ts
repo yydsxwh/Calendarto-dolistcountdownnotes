@@ -48,6 +48,7 @@ export function mergeAppData(preferred: AppData, other: AppData): AppData {
     exams: mergeById(preferred.exams ?? [], other.exams ?? []),
     selfSchedules: mergeById(preferred.selfSchedules ?? [], other.selfSchedules ?? []),
     calendarEvents: mergeById(preferred.calendarEvents ?? [], other.calendarEvents ?? []),
+    recurringReminders: mergeById(preferred.recurringReminders ?? [], other.recurringReminders ?? []),
     terms: mergeById(preferred.terms ?? [], other.terms ?? []),
   }
 }
@@ -62,7 +63,8 @@ export function isEmptyData(data: AppData | null | undefined): boolean {
     (data.courses?.length ?? 0) === 0 &&
     (data.exams?.length ?? 0) === 0 &&
     (data.selfSchedules?.length ?? 0) === 0 &&
-    (data.calendarEvents?.length ?? 0) === 0
+    (data.calendarEvents?.length ?? 0) === 0 &&
+    (data.recurringReminders?.length ?? 0) === 0
   )
 }
 
@@ -76,6 +78,7 @@ export function fingerprint(data: AppData): string {
     data.exams,
     data.selfSchedules,
     data.calendarEvents,
+    data.recurringReminders,
     data.terms,
     data.currentTermId,
     data.reminderSettings,

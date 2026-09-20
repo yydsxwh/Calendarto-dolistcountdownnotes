@@ -516,6 +516,10 @@ select.input {
   background: #e11d48;
 }
 
+.dot.recurring {
+  background: #7c3aed;
+}
+
 .cal-cell.is-selected .dot {
   background: white;
 }
@@ -706,6 +710,48 @@ select.input {
 .remind-banner.exam {
   background: #fff1f2;
   border-color: #fb7185;
+}
+
+.remind-banner.recurring {
+  background: #f5f3ff;
+  border-color: #a78bfa;
+}
+
+.recurring-cta-row {
+  margin: 0 0 16px;
+}
+
+.recurring-cta {
+  width: 100%;
+  min-height: 48px;
+  font-size: 16px;
+}
+
+.recurring-panel,
+.recurring-editor {
+  margin-bottom: 16px;
+}
+
+.recurring-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.recurring-note {
+  width: 100%;
+  resize: vertical;
+  min-height: 64px;
+}
+
+.recurring-interval {
+  width: 72px;
+}
+
+.mini-list li.is-paused span,
+.mini-list li.is-paused strong {
+  color: var(--muted);
 }
 
 .remind-banner p {

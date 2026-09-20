@@ -82,6 +82,7 @@ describe('mergeAppData', () => {
     const merged = mergeAppData(emptyData(), legacy)
     expect(merged.todos).toHaveLength(1)
     expect(merged.calendarEvents).toEqual([])
+    expect(merged.recurringReminders).toEqual([])
     expect(merged.reminderSettings).toBeDefined()
   })
 })
@@ -119,5 +120,45 @@ describe('fingerprint', () => {
   it('ignores nothing the user can see: a new note changes it', () => {
     const withNote: AppData = { ...base, notes: [note('n', 'hi', 1)] }
     expect(fingerprint(withNote)).not.toBe(fingerprint(base))
+  })
+
+  it('changes when a recurring reminder is added', () => {
+    const withRecurring: AppData = {
+      ...base,
+      recurringReminders: [
+        {
+          id: 'r1',
+          title: '体检',
+          startDate: '2026-09-20',
+          rule: { kind: 'interval', interval: 1, unit: 'year' },
+          neverEnds: true,
+          enabled: true,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+    }
+    expect(fingerprint(withRecurring)).not.toBe(fingerprint(base))
+  })
+})
+
+describe('recurringReminders migration', () => {
+  it('treats only recurring content as non-empty so cloud will not wipe it', () => {
+    const onlyRecurring: AppData = {
+      ...emptyData(),
+      recurringReminders: [
+        {
+          id: 'r1',
+          title: '体检',
+          startDate: '2026-09-20',
+          rule: { kind: 'interval', interval: 1, unit: 'year' },
+          neverEnds: true,
+          enabled: true,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      ],
+    }
+    expect(isEmptyData(onlyRecurring)).toBe(false)
   })
 })

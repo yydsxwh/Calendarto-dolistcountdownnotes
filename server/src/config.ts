@@ -56,7 +56,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DaysConfig {
     accountClientId: env.ACCOUNT_CLIENT_ID || 'rishi',
     accountClientSecret: env.ACCOUNT_CLIENT_SECRET || '',
     accountRedirectUri: env.ACCOUNT_REDIRECT_URI || `${publicOrigin}/api/days/auth/callback`,
-    accountScopes: env.ACCOUNT_SCOPES || 'openid profile email offline_access account.basic',
+    accountScopes: env.ACCOUNT_SCOPES || 'openid profile email offline_access',
     wwwSessionUrl: env.DAYS_SYNC_SESSION_URL || 'https://www.yydsxwh.com/api/auth/session',
     platformBaseUrl: (env.PLATFORM_API_URL || env.PLATFORM_BASE_URL || '').replace(/\/+$/, ''),
     platformServiceToken: env.PLATFORM_SERVICE_TOKEN || '',

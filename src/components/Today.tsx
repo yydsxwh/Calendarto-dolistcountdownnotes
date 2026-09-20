@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { compareByStartTime, eventMatchesDate, formatEventTime, formatTodoTimeRange } from '../lib/calendar-events'
 import { daysUntil, formatLong, nextOccurrence, startOfToday, toISODate } from '../lib/dates'
 import { jsWeekday } from '../lib/periods'
 import { upcomingClasses, upcomingExams } from '../lib/reminders'
@@ -68,12 +69,16 @@ export default function Today({
     (c) => courseInTerm(c, store.data.currentTermId) && courseInTeachingWeek(c, weekNo),
   )
   const nextExams = upcomingExams(store.data.exams, iso).slice(0, 4)
+  const todayEvents = store.data.calendarEvents
+    .filter((e) => eventMatchesDate(e, iso))
+    .sort((a, b) => compareByStartTime(a, b))
 
   return (
     <section className="view">
       <header className="view-head">
         <p className="kicker">{hello}</p>
-        <h2>{formatLong(today)}</h2>
+        <h2>每日提醒</h2>
+        <p className="muted">{formatLong(today)}</p>
         <p className="muted">
           {store.stats.remaining} 件待办 · {store.stats.courseCount} 节课 ·{' '}
           {store.stats.examCount} 场考试 · {store.stats.noteCount} 条便签
@@ -188,6 +193,29 @@ export default function Today({
       <div className="dash-grid">
         <article className="card">
           <div className="card-head">
+            <h3>今天的日程</h3>
+            <button className="link" onClick={() => onOpen('calendar')}>
+              日历
+            </button>
+          </div>
+          {todayEvents.length === 0 && (
+            <p className="empty-inline">今天没有自定义日程。在日历选日期后可添加时间段。</p>
+          )}
+          <ul className="mini-list">
+            {todayEvents.map((e) => (
+              <li key={e.id}>
+                <span>
+                  {formatEventTime(e) ? `${formatEventTime(e)} ` : ''}
+                  {e.title}
+                </span>
+                <em>{[e.location, e.remindMinutes > 0 ? `提前 ${e.remindMinutes} 分` : ''].filter(Boolean).join(' · ') || '—'}</em>
+              </li>
+            ))}
+          </ul>
+        </article>
+
+        <article className="card">
+          <div className="card-head">
             <h3>今天的课</h3>
             <button className="link" onClick={() => onOpen('schedule')}>
               课程表
@@ -256,7 +284,7 @@ export default function Today({
                       checked={t.done}
                       onChange={() => store.toggleTodo(t.id)}
                     />
-                    <span>{t.title}</span>
+                    <span>{formatTodoTimeRange(t) ? `${formatTodoTimeRange(t)} ` : ''}{t.title}</span>
                   </label>
                   <em>逾期 {t.dueDate}</em>
                 </li>
@@ -275,7 +303,7 @@ export default function Today({
                     checked={t.done}
                     onChange={() => store.toggleTodo(t.id)}
                   />
-                  <span>{t.title}</span>
+                  <span>{formatTodoTimeRange(t) ? `${formatTodoTimeRange(t)} ` : ''}{t.title}</span>
                 </label>
               </li>
             ))}
@@ -287,7 +315,7 @@ export default function Today({
                     checked={t.done}
                     onChange={() => store.toggleTodo(t.id)}
                   />
-                  <span>{t.title}</span>
+                  <span>{formatTodoTimeRange(t) ? `${formatTodoTimeRange(t)} ` : ''}{t.title}</span>
                 </label>
                 <em>未定期</em>
               </li>

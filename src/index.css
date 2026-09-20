@@ -1547,3 +1547,34 @@ select.input {
     border-radius: 6px;
   }
 }
+
+/* 日程时间段（PR #17 与周期提醒并存） */
+.dot.event {
+  background: #16a34a;
+}
+
+.cal-hint {
+  margin: 0 0 0.75rem;
+  padding: 0 0.25rem;
+}
+
+.check-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.stack.gap-sm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.link-btn.inline {
+  display: inline;
+  font-size: inherit;
+  vertical-align: baseline;
+}

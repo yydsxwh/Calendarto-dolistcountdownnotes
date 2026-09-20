@@ -15,8 +15,8 @@
 - **便签 · 笔记** — 同一个功能。彩色便利贴，可钉住；可送进主站网页文档
  继续写长文，或另存 `.docx` 给 WPS / Word 打开
 
-数据本地优先，存浏览器 `localStorage`（键 `kemiao-days-v1`）。网页版登录主站后
-额外实时同步到云端；原生壳仍是纯本机。
+数据本地优先，存浏览器 `localStorage`（键 `kemiao-days-v1`）。网页版和 Android
+登录账号中心后，用日事自己的 Session 按 OIDC `sub` 同步；未登录仍可离线使用。
 线上入口是主站软件产品栏：`https://www.yydsxwh.com/products` → `/products/days`。
 
 ## Tech stack
@@ -33,7 +33,9 @@ Standard scripts are defined in `package.json`:
 - `npm run lint` — run ESLint over the project.
 - `npm run typecheck` — `tsc -b` on its own.
 - `npm test` — Vitest unit tests (dates / sync merge / note→document).
-- `npm run test:sync` — self-test for the cloud sync service, no framework needed.
+- `npm run test:sync` / `npm run test:server` — BFF 集成测试（OIDC / 同步 / handoff）。
+- `npm run build:server` — 把 BFF 打成 `server/dist/index.mjs`。
+- `npm run dev:bff` — 本地起日事 BFF（默认 127.0.0.1:3120）。
 - `npm run preview` — serve the production build locally.
 
 ## Cursor Cloud specific instructions
@@ -53,31 +55,33 @@ Standard scripts are defined in `package.json`:
   a 404 white screen. `vite.config.ts` sets it for `command === 'build'`, and
   `deploy.yml` passes `--base=/products/days/` explicitly. Android/iOS override
   with `--base=./`; do not "simplify" either away.
-- **登录与云同步走主站同源接口，不是账号中心。** `/products/days/` 和主站同源，
-  所以 `GET /api/auth/session` 直接给出 `{user:{id,name,avatarUrl}}`（未登录返回
-  `null` 而非 401）。不要再去打 `account.yydsxwh.com/api/products/days/sync` ——
-  那个接口不存在，正是旧版「点登录没反应」的原因。账号中心虽然是完整的 OIDC
-  Provider（discovery / JWKS / PKCE 都可用），但 `days` 客户端尚未登记，
-  authorize 会返回「产品未登记或已停用」。
-- 云同步服务在 `server/days-sync/`：只用 Node 内置模块，无 npm 依赖。身份靠把
-  浏览器 Cookie 转给主站会话接口换取，客户端传的 userId 一律忽略。乐观并发，
-  409 带回服务端现状由客户端合并（按 id 取并集，宁可多留不可丢失）。
-  生产上是 systemd 服务 `kemiao-days-sync`（127.0.0.1:3120，数据在
-  `/var/lib/kemiao-days`），nginx 用**精确匹配** `location = /api/days/sync`
-  转发 —— 不要用 `^~ /api/days/`，那会抢走同前缀下属于 Next 的路由。
+- **登录走账号中心 OIDC，日事自己建 Session。** Web：`/api/days/auth/login` →
+  account authorize（confidential `rishi` + PKCE S256）→ callback 校验
+  state / nonce / iss / aud → 写 HttpOnly `rishi_session`。Android：同一套
+  OIDC，callback 发一次性 handoff，App 换 rishi session token，存在
+  Capacitor Preferences，不把 account token 放进 APK / localStorage。
+  身份键是 OIDC `sub`（`usr_*`）。客户端提交的 userId 一律忽略。
+- 云同步仍是 `GET/PUT /api/days/sync`，BFF 在 `server/src/`，构建产物
+  `server/dist/index.mjs`。生产 systemd `kemiao-days-sync`（127.0.0.1:3120，
+  数据 `/var/lib/kemiao-days`）。nginx 用精确匹配转发 auth/sync/ocr，
+  只有 `/api/days/files` 用前缀。不要用 `^~ /api/days/`。
+  旧主站 Cookie 只作过渡读取与一次性迁移，不能当长期 Session。
+- 公共能力：`@yydsxwh/shared@v0.5.1`（identity / platform-client / tokens）。
+  Storage / AI 只在 BFF 用 `PLATFORM_SERVICE_TOKEN` + `withActor(sub)` 调
+  platform。浏览器和 APK 看不到 service token 与 AI Key。platform 未配置时
+  OCR 回落到主站 `/api/days/timetable-ocr`。
 - 便签的「用网页文档打开 / 另存 Word」直接复用主站现成接口：`POST /api/docs`
   建文档、`POST /api/docs/export` 返回真正的 `.docx`（后者不需要登录）。内容是
   ProseMirror JSON，只允许 doc / heading / paragraph / text 等节点，且 text
   节点不能为空字符串。日事不自己造文档格式。
-- 原生壳（Android / Windows）的页面不在 `www.yydsxwh.com` 源下，拿不到主站
-  Cookie，因此只有本机模式，右上角显示「本机模式」而不是登录按钮。要让原生端
-  也能同步，需要一次性 token 交接，尚未实现。
+- 原生壳登录用 `kemiao-days://auth?handoff=` 一次性交接。未登录仍可离线用
+  localStorage；登录后与网页同一 `sub` 同步。
 - Views are hash routes (`#today` `#calendar` `#todos` `#schedule` `#days` `#notes`).
 - Course/exam import uses SheetJS (`xlsx`) for spreadsheets. Photos, screenshots,
   PDF pages, and Word/text go through `POST /api/days/timetable-ocr` on the main
   site (same MathCode vision key: `translateApi*` / `MATHCODE_*`, typically
-  通义千问 `qwen-vl-max`). Vite proxies `/api/days` to `https://www.yydsxwh.com`
-  in `npm run dev`. Sample files live in `public/samples/`.
+  通义千问 `qwen-vl-max`).   Vite proxies `/api/days` to the local BFF (`127.0.0.1:3120`)
+  in `npm run dev`. Start `npm run dev:bff` for login / sync / OCR. Sample files live in `public/samples/`.
   Parser self-test: `npm run test:timetable` (import + week-grid layout).
   Photo import resizes to JPEG ≤1600px before `POST /api/days/timetable-ocr`
   (phone originals often fail the first vision call). HEIC is rejected with

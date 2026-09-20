@@ -184,6 +184,19 @@ textarea {
   box-shadow: var(--shadow);
 }
 
+.admin-integrations {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-integrations label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
 .card-head,
 .cal-nav,
 .row,

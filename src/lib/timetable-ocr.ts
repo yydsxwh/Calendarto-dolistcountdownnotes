@@ -1,9 +1,11 @@
 import {
   COURSE_COLORS,
   EXAM_KIND_LABEL,
+  SELF_SCHEDULE_COLORS,
   type Course,
   type Exam,
   type ExamKind,
+  type SelfScheduleItem,
 } from '../types'
 import { classifyTimetableFile } from './file-kinds'
 import { explainOcrHttpError, prepareTimetableImage } from './image-prep'
@@ -20,7 +22,7 @@ import {
   parseTimeRange,
 } from './periods'
 import type { TimetableImportResult } from './timetable-import'
-import { timetableOcrUrl } from './native'
+import { daysFetch } from './days-api'
 import { uid } from './store'
 
 export type OcrCourseDraft = {
@@ -57,7 +59,7 @@ export type TimetableOcrPayload = {
 }
 
 function ocrEndpoint(): string {
-  return timetableOcrUrl()
+  return '/api/days/timetable-ocr'
 }
 
 function parseExamKind(raw: string): ExamKind {
@@ -192,9 +194,41 @@ export function hydrateTimetableOcr(
     })
   }
 
+  const selfSchedules: SelfScheduleItem[] = []
+  const selfDrafts = remapZeroBasedWeekdays(asArray((raw as { selfSchedules?: unknown }).selfSchedules))
+  for (const item of selfDrafts) {
+    const rec = item as Record<string, unknown>
+    const title = text(rec.title) || text(rec.name)
+    const weekday = resolveOcrWeekday(rec)
+    const slot = resolveSlot(rec)
+    if (!title || !weekday || !slot) continue
+    selfSchedules.push({
+      id: uid(),
+      title,
+      weekday,
+      startTime: slot.start,
+      endTime: slot.end,
+      color: SELF_SCHEDULE_COLORS[selfSchedules.length % SELF_SCHEDULE_COLORS.length],
+      note: text(rec.note) || undefined,
+      remindMinutes: 10,
+      priority: 'medium',
+      createdAt: Date.now(),
+    })
+  }
+
   const kind =
-    courses.length && exams.length ? 'mixed' : exams.length ? 'exams' : 'courses'
-  return { courses, exams, warnings, sheets: flat.model ? [flat.model] : ['ai'], kind }
+    selfSchedules.length && !courses.length && !exams.length
+      ? 'self'
+      : courses.length && exams.length
+        ? 'mixed'
+        : exams.length
+          ? 'exams'
+          : 'courses'
+  return { courses, exams, selfSchedules, warnings, sheets: flat.model ? [flat.model] : ['ai'], kind }
+}
+
+function asArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object')) : []
 }
 
 export async function recognizeTimetableFile(
@@ -208,7 +242,7 @@ export async function recognizeTimetableFile(
   form.append('file', upload, upload.name)
   if (userHint.trim()) form.append('userHint', userHint.trim())
 
-  const res = await fetch(ocrEndpoint(), { method: 'POST', body: form })
+  const res = await daysFetch(ocrEndpoint(), { method: 'POST', body: form })
   let payload: TimetableOcrPayload = {}
   try {
     payload = (await res.json()) as TimetableOcrPayload
@@ -266,6 +300,7 @@ export async function importViaAi(
     const merged: TimetableImportResult = {
       courses: [],
       exams: [],
+      selfSchedules: [],
       warnings: [],
       sheets: [],
       kind: 'courses',
@@ -274,6 +309,7 @@ export async function importViaAi(
       const part = await recognizeTimetableFile(page, defaults, userHint)
       merged.courses.push(...part.courses)
       merged.exams.push(...part.exams)
+      merged.selfSchedules?.push(...(part.selfSchedules ?? []))
       merged.warnings.push(...part.warnings)
       merged.sheets.push(...part.sheets)
     }

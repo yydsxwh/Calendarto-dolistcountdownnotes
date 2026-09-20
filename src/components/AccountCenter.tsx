@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { daysFetch } from '../lib/days-api'
 import { ACCOUNT_CENTER_URL, avatarInitial, loginUrl, logoutUrl } from '../lib/site-session'
+import { clearNativeSession, startNativeLogin } from '../lib/native-auth'
+import { isNativeApp } from '../lib/native'
 import type { CloudSync } from '../hooks/useCloudSync'
 import type { AppData } from '../types'
 
@@ -10,7 +13,7 @@ const STATE_TEXT: Record<CloudSync['state'], string> = {
   synced: '已同步到云端',
   offline: '云端连不上，改动已存在本机',
   error: '同步出错，改动已存在本机',
-  localOnly: '手机 / 桌面客户端暂时只存在本机',
+  localOnly: '未登录，数据只存在这台设备',
 }
 
 function syncTone(state: CloudSync['state'], pending: boolean): string {
@@ -31,7 +34,23 @@ function relativeTime(at: number | null): string {
 
 export default function AccountCenter({ sync, data }: { sync: CloudSync; data: AppData }) {
   const [open, setOpen] = useState(false)
+  const [admin, setAdmin] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void daysFetch('/api/days/admin/me')
+      .then((res) => (res.ok ? res.json() : { admin: false }))
+      .then((body: { admin?: boolean }) => {
+        if (!cancelled) setAdmin(Boolean(body.admin))
+      })
+      .catch(() => {
+        if (!cancelled) setAdmin(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -52,24 +71,16 @@ export default function AccountCenter({ sync, data }: { sync: CloudSync; data: A
   const { user, state, pendingChanges, lastSyncedAt } = sync
   const tone = syncTone(state, pendingChanges)
 
-  // 壳里点登录也拿不到主站会话，不如直接指向网页版，别给一个按下去没反应的按钮。
-  if (state === 'localOnly') {
-    return (
-      <div className="account-wrap" ref={wrapRef}>
-        <a
-          className="btn ghost slim"
-          href="https://www.yydsxwh.com/products/days/"
-          target="_blank"
-          rel="noreferrer"
-          title="手机 / 桌面客户端的数据只存在本机；想多端同步请用网页版登录"
-        >
-          本机模式
-        </a>
-      </div>
-    )
-  }
-
   if (!user) {
+    if (isNativeApp()) {
+      return (
+        <div className="account-wrap" ref={wrapRef}>
+          <button className="btn primary slim" type="button" onClick={() => void startNativeLogin()}>
+            登录
+          </button>
+        </div>
+      )
+    }
     return (
       <div className="account-wrap" ref={wrapRef}>
         <a className="btn primary slim" href={loginUrl()}>
@@ -142,10 +153,13 @@ export default function AccountCenter({ sync, data }: { sync: CloudSync; data: A
           </dl>
 
           <div className="account-links">
+            {admin ? <a href="#admin/integrations">集成设置</a> : null}
             <a href={`${ACCOUNT_CENTER_URL}/`} target="_blank" rel="noreferrer">
               账号中心设置
             </a>
-            <a href={logoutUrl()}>退出登录</a>
+            <a href={logoutUrl()} onClick={() => void clearNativeSession()}>
+              退出登录
+            </a>
           </div>
         </div>
       )}

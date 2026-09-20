@@ -56,7 +56,8 @@ export const EXAM_KIND_LABEL: Record<ExamKind,string> = { midterm:'期中', fina
 export interface Todo { id:string; title:string; done:boolean; dueDate?:string; dueTime?:string; dueEndTime?:string; priority:Priority; remindMinutes:number; createdAt:number }
 export interface Countdown { id:string; title:string; date:string; color:string; emoji:string; repeatYearly:boolean; createdAt:number }
 export interface Note { id:string; title:string; body:string; color:string; pinned:boolean; date?:string; updatedAt:number }
-export interface AppData { todos:Todo[]; countdowns:Countdown[]; notes:Note[]; courses:Course[]; exams:Exam[]; selfSchedules:SelfScheduleItem[]; calendarEvents:CalendarEvent[]; recurringReminders:RecurringReminder[]; reminderSettings:ReminderSettings; terms:Term[]; currentTermId?:string; timetableView:TimetableViewSettings; termStart?:string }
+export interface Tombstone { id: string; deletedAt: number }
+export interface AppData { todos:Todo[]; countdowns:Countdown[]; notes:Note[]; courses:Course[]; exams:Exam[]; selfSchedules:SelfScheduleItem[]; calendarEvents:CalendarEvent[]; recurringReminders:RecurringReminder[]; reminderSettings:ReminderSettings; terms:Term[]; currentTermId?:string; timetableView:TimetableViewSettings; termStart?:string; tombstones:Tombstone[] }
 export const NOTE_COLORS = ['#fef08a','#fecdd3','#bbf7d0','#bae6fd','#ddd6fe','#fed7aa'] as const
 export const COUNTDOWN_COLORS = ['#2563eb','#ff6b35','#e11d48','#fb7185','#38bdf8','#ffb703'] as const
 export const COUNTDOWN_EMOJIS = ['🎯','🎂','✈️','📚','💍','🎓','🏠','🎉'] as const

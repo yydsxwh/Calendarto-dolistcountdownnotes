@@ -71,6 +71,19 @@ describe('mergeAppData', () => {
     expect(merged.notes).toHaveLength(2)
   })
 
+  it('does not resurrect a deleted item from an older device copy', () => {
+    const phone: AppData = {
+      ...emptyData(),
+      todos: [],
+      tombstones: [{ id: 'gone', deletedAt: 50 }],
+    }
+    const laptop: AppData = {
+      ...emptyData(),
+      todos: [todo('gone', '已被删除', 10)],
+    }
+    expect(mergeAppData(phone, laptop).todos).toEqual([])
+  })
+
   it('takes settings from the preferred side', () => {
     const mine: AppData = { ...emptyData(), currentTermId: 'mine' }
     const theirs: AppData = { ...emptyData(), currentTermId: 'theirs' }

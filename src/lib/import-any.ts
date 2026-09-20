@@ -3,7 +3,7 @@ import { importViaAi } from './timetable-ocr'
 import { importTimetableFile, type TimetableImportResult } from './timetable-import'
 
 export type ImportSource = 'sheet' | 'ai'
-export type ImportFocus = 'auto' | 'courses' | 'exams'
+export type ImportFocus = 'auto' | 'courses' | 'exams' | 'self'
 
 function applyFocus(
   result: TimetableImportResult,
@@ -21,6 +21,14 @@ function applyFocus(
       ...result,
       courses: [],
       kind: result.exams.length ? 'exams' : result.kind,
+    }
+  }
+  if (focus === 'self') {
+    return {
+      ...result,
+      courses: [],
+      exams: [],
+      kind: (result.selfSchedules?.length ?? 0) ? 'self' : result.kind,
     }
   }
   return result
@@ -54,6 +62,9 @@ export async function importTimetableAny(
   }
   if (focus === 'courses' && focused.courses.length === 0) {
     throw new Error('没有识别到课程。请拍教务处的周课表，或导入带星期和节次的表格。')
+  }
+  if (focus === 'self' && !(focused.selfSchedules?.length)) {
+    throw new Error('没有识别到自律安排。请拍假期时间表，或导入带星期和时段的表格。')
   }
   return { ...focused, source }
 }

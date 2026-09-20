@@ -4,17 +4,19 @@ import {
   type Course,
   type Exam,
   type ExamKind,
+  type SelfScheduleItem,
 } from '../types'
 import { parseClock, parsePeriodHint, parseTimeRange, parseWeekday, WEEKDAY_LABELS } from './periods'
 import { uid } from './store'
 
 const UNSUPPORTED = new Set(['pdf', 'parquet'])
 
-export type ImportKind = 'courses' | 'exams' | 'mixed'
+export type ImportKind = 'courses' | 'exams' | 'self' | 'mixed'
 
 export interface TimetableImportResult {
   courses: Course[]
   exams: Exam[]
+  selfSchedules?: SelfScheduleItem[]
   warnings: string[]
   sheets: string[]
   kind: ImportKind

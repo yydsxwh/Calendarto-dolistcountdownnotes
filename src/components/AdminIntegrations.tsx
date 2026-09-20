@@ -137,7 +137,7 @@ export default function AdminIntegrations() {
       clientSecret: '',
       redirectUri: body.account.redirectUri,
       scopes: body.account.scopes,
-      enabled: body.account.enabled,
+      enabled: body.account.enabled || body.account.clientSecret.configured,
     })
     setPlatform({
       apiUrl: body.platform.apiUrl,

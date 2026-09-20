@@ -6,9 +6,9 @@ import assert from 'node:assert/strict'
 import { after, before, test } from 'node:test'
 import { decryptJson, encryptJson, secretHint } from './crypto'
 import { createDaysServer } from './index'
-import { loadConfig } from './config'
+import { loadConfig, oidcConfigured } from './config'
 import { probeAccount, probePlatform, probeProductApi } from './integration-probe'
-import { emptyOverlay, slugApiId, upsertApi } from './integration-store'
+import { applyOverlay, emptyOverlay, slugApiId, upsertApi } from './integration-store'
 import { issueSession } from './session'
 
 const BFF_PORT = 3932
@@ -109,6 +109,28 @@ after(async () => {
 function cookieFor(sub: string) {
   return `rishi_session=${issueSession({ sub, name: sub, email: '', avatarUrl: '' }, config).token}`
 }
+
+test('后台已填 secret 即使未勾选启用也要接入 OIDC', () => {
+  const cfg = loadConfig({
+    NODE_ENV: 'test',
+    DAYS_SYNC_DATA_DIR: dataDir,
+    RISHI_SESSION_SECRET: 'test-session-secret',
+  })
+  assert.equal(oidcConfigured(cfg), false)
+  applyOverlay(cfg, {
+    ...emptyOverlay(),
+    account: {
+      issuer: 'https://account.yydsxwh.com',
+      clientId: 'rishi',
+      clientSecret: 'ys_from_admin',
+      redirectUri: 'https://www.yydsxwh.com/api/days/auth/callback',
+      scopes: 'openid profile email',
+      enabled: false,
+    },
+  })
+  assert.equal(cfg.accountClientSecret, 'ys_from_admin')
+  assert.equal(oidcConfigured(cfg), true)
+})
 
 test('Account 默认配置不含伪造 Client Secret', () => {
   const defaults = loadConfig({

@@ -90,18 +90,16 @@ export async function writeOverlay(config: DaysConfig, overlay: IntegrationOverl
 }
 
 export function applyOverlay(config: DaysConfig, overlay: IntegrationOverlay): DaysConfig {
-  if (overlay.account.enabled) {
-    if (overlay.account.issuer) config.accountIssuer = overlay.account.issuer.replace(/\/+$/, '')
-    if (overlay.account.clientId) config.accountClientId = overlay.account.clientId
-    if (overlay.account.clientSecret) config.accountClientSecret = overlay.account.clientSecret
-    if (overlay.account.redirectUri) config.accountRedirectUri = overlay.account.redirectUri
-    if (overlay.account.scopes) config.accountScopes = overlay.account.scopes
-  }
-  if (overlay.platform.enabled) {
-    if (overlay.platform.apiUrl) config.platformBaseUrl = overlay.platform.apiUrl.replace(/\/+$/, '')
-    if (overlay.platform.clientId) config.platformClientId = overlay.platform.clientId
-    if (overlay.platform.serviceToken) config.platformServiceToken = overlay.platform.serviceToken
-  }
+  const account = overlay.account
+  if (account.issuer) config.accountIssuer = account.issuer.replace(/\/+$/, '')
+  if (account.clientId) config.accountClientId = account.clientId
+  if (account.clientSecret) config.accountClientSecret = account.clientSecret
+  if (account.redirectUri) config.accountRedirectUri = account.redirectUri
+  if (account.scopes) config.accountScopes = account.scopes
+  const platform = overlay.platform
+  if (platform.apiUrl) config.platformBaseUrl = platform.apiUrl.replace(/\/+$/, '')
+  if (platform.clientId) config.platformClientId = platform.clientId
+  if (platform.serviceToken) config.platformServiceToken = platform.serviceToken
   return config
 }
 

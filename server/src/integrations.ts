@@ -124,6 +124,8 @@ export async function handleIntegrations(req: IncomingMessage, res: ServerRespon
       }
     }
     const next = mergeOverlay(overlay, body)
+    if (body.account?.clientSecret?.trim()) next.account.enabled = true
+    if (body.platform?.serviceToken?.trim()) next.platform.enabled = true
     await persistOverlay(config, next)
     sendJson(res, 200, publicIntegrations(config, next))
   } catch (error) {

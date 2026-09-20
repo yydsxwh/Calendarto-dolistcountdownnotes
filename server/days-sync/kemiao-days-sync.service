@@ -16,7 +16,7 @@ Environment=RISHI_PUBLIC_ORIGIN=https://www.yydsxwh.com
 Environment=ACCOUNT_ISSUER=https://account.yydsxwh.com
 Environment=ACCOUNT_CLIENT_ID=rishi
 Environment=ACCOUNT_REDIRECT_URI=https://www.yydsxwh.com/api/days/auth/callback
-Environment=ACCOUNT_SCOPES=openid profile email
+Environment="ACCOUNT_SCOPES=openid profile email"
 # ACCOUNT_CLIENT_SECRET / RISHI_SESSION_SECRET / PLATFORM_* 放 EnvironmentFile，不要写进仓库
 EnvironmentFile=-/etc/kemiao-days-sync.env
 Restart=always

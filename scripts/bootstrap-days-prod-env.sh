@@ -109,7 +109,7 @@ else
 fi
 
 if sudo test -f "$DROPIN" && ! sudo grep -q 'ACCOUNT_SCOPES=' "$DROPIN"; then
-  echo 'Environment=ACCOUNT_SCOPES=openid profile email' | sudo tee -a "$DROPIN" >/dev/null
+  echo 'Environment="ACCOUNT_SCOPES=openid profile email"' | sudo tee -a "$DROPIN" >/dev/null
   echo 'dropin=ACCOUNT_SCOPES-added'
 fi
 

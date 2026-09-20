@@ -250,6 +250,10 @@ textarea {
   gap: 16px;
 }
 
+.admin-integrations .row {
+  justify-content: flex-start;
+}
+
 @media (max-width: 800px) {
   .admin-shell {
     grid-template-columns: 1fr;

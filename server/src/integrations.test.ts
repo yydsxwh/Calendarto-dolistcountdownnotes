@@ -219,7 +219,7 @@ test('产品 API 不能占用 account / platform，密钥只写不读', async ()
   })
   assert.equal(created.status, 200)
   const createdBody = await created.json() as { api: { id: string; secret: { configured: boolean; hint: string } } }
-  assert.equal(createdBody.api.id, '课表-助手')
+  assert.equal(createdBody.api.id, '课表助手')
   assert.equal(JSON.stringify(createdBody).includes('api-secret'), false)
   assert.equal(createdBody.api.secret.configured, true)
   assert.ok(createdBody.api.secret.hint.endsWith('cret'))

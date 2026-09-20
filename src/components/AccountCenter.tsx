@@ -153,7 +153,7 @@ export default function AccountCenter({ sync, data }: { sync: CloudSync; data: A
           </dl>
 
           <div className="account-links">
-            {admin ? <a href="#admin/integrations">集成设置</a> : null}
+            {admin ? <a href="#admin">管理后台</a> : null}
             <a href={`${ACCOUNT_CENTER_URL}/`} target="_blank" rel="noreferrer">
               账号中心设置
             </a>

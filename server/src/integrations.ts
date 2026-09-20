@@ -3,16 +3,33 @@ import { requireAdmin } from './admin'
 import { oidcConfigured, platformConfigured, type DaysConfig } from './config'
 import { secretHint } from './crypto'
 import { log, readBody, sendJson } from './http'
-import { probeAccount, probePlatform } from './integration-probe'
+import { probeAccount, probePlatform, probeProductApi } from './integration-probe'
 import {
   applyOverlay,
   encryptionKeyFrom,
   mergeOverlay,
   readOverlay,
+  removeApi,
+  upsertApi,
   writeOverlay,
+  type IntegrationOverlay,
+  type ProductApi,
 } from './integration-store'
 
-function publicIntegrations(config: DaysConfig, overlayEnabled: { account: boolean; platform: boolean }) {
+function publicApi(api: ProductApi) {
+  return {
+    id: api.id,
+    name: api.name,
+    baseUrl: api.baseUrl,
+    authType: api.authType,
+    headerName: api.headerName,
+    secret: secretHint(api.secret),
+    testPath: api.testPath,
+    enabled: api.enabled,
+  }
+}
+
+function publicIntegrations(config: DaysConfig, overlay: IntegrationOverlay) {
   return {
     account: {
       issuer: config.accountIssuer,
@@ -20,14 +37,15 @@ function publicIntegrations(config: DaysConfig, overlayEnabled: { account: boole
       clientSecret: secretHint(config.accountClientSecret),
       redirectUri: config.accountRedirectUri,
       scopes: config.accountScopes,
-      enabled: overlayEnabled.account || oidcConfigured(config),
+      enabled: overlay.account.enabled || oidcConfigured(config),
     },
     platform: {
       apiUrl: config.platformBaseUrl,
       clientId: config.platformClientId,
       serviceToken: secretHint(config.platformServiceToken),
-      enabled: overlayEnabled.platform || platformConfigured(config),
+      enabled: overlay.platform.enabled || platformConfigured(config),
     },
+    apis: overlay.apis.map(publicApi),
     encryptionKeyConfigured: Boolean(encryptionKeyFrom(config)),
   }
 }
@@ -39,15 +57,28 @@ function adminError(res: ServerResponse, error: unknown) {
     return
   }
   if (message === 'ADMIN_ONLY') {
-    sendJson(res, 403, { error: 'admin_only', message: '仅站长可进入集成设置' })
+    sendJson(res, 403, { error: 'admin_only', message: '仅站长可进入管理后台' })
     return
   }
   if (message === 'MISSING_ENCRYPTION_KEY') {
     sendJson(res, 503, { error: 'missing_encryption_key', message: 'BLOCKED: 服务器未配置 RISHI_CONFIG_ENCRYPTION_KEY' })
     return
   }
+  if (message === 'BAD_API') {
+    sendJson(res, 400, { error: 'bad_api', message: '接口名称或地址不合法，且不能占用 account / platform' })
+    return
+  }
+  if (message === 'TOO_MANY_APIS') {
+    sendJson(res, 400, { error: 'too_many_apis', message: '最多保存 20 条产品接口' })
+    return
+  }
   log('warn', 'admin integrations failed', { reason: message })
   sendJson(res, 500, { error: 'server_error' })
+}
+
+async function persistOverlay(config: DaysConfig, overlay: IntegrationOverlay) {
+  await writeOverlay(config, overlay)
+  applyOverlay(config, overlay)
 }
 
 export async function handleAdminMe(req: IncomingMessage, res: ServerResponse, config: DaysConfig) {
@@ -68,7 +99,7 @@ export async function handleIntegrations(req: IncomingMessage, res: ServerRespon
     await requireAdmin(req, config)
     const overlay = await readOverlay(config)
     if (req.method === 'GET') {
-      sendJson(res, 200, publicIntegrations(config, { account: overlay.account.enabled, platform: overlay.platform.enabled }))
+      sendJson(res, 200, publicIntegrations(config, overlay))
       return
     }
     if (req.method !== 'PUT') {
@@ -93,9 +124,8 @@ export async function handleIntegrations(req: IncomingMessage, res: ServerRespon
       }
     }
     const next = mergeOverlay(overlay, body)
-    await writeOverlay(config, next)
-    applyOverlay(config, next)
-    sendJson(res, 200, publicIntegrations(config, { account: next.account.enabled, platform: next.platform.enabled }))
+    await persistOverlay(config, next)
+    sendJson(res, 200, publicIntegrations(config, next))
   } catch (error) {
     if (error instanceof SyntaxError) {
       sendJson(res, 400, { error: 'bad_json' })
@@ -129,6 +159,76 @@ export async function handlePlatformProbe(req: IncomingMessage, res: ServerRespo
     })
     sendJson(res, result.ok ? 200 : 502, result)
   } catch (error) {
+    adminError(res, error)
+  }
+}
+
+export async function handleProductApis(req: IncomingMessage, res: ServerResponse, url: URL, config: DaysConfig) {
+  try {
+    await requireAdmin(req, config)
+    const overlay = await readOverlay(config)
+    const parts = url.pathname.replace(/\/+$/, '').split('/')
+    const afterApis = parts.slice(parts.indexOf('apis') + 1)
+    const id = decodeURIComponent(afterApis[0] || '')
+    const action = decodeURIComponent(afterApis[1] || '')
+
+    if (!id) {
+      if (req.method === 'GET') {
+        sendJson(res, 200, { apis: overlay.apis.map(publicApi) })
+        return
+      }
+      if (req.method !== 'POST') {
+        sendJson(res, 405, { error: 'method_not_allowed' }, { allow: 'GET, POST' })
+        return
+      }
+      const raw = await readBody(req, 64 * 1024)
+      const body = JSON.parse(raw.toString('utf8')) as Partial<ProductApi>
+      const api = upsertApi(overlay, body)
+      await persistOverlay(config, overlay)
+      sendJson(res, 200, { api: publicApi(api) })
+      return
+    }
+
+    if (action === 'test' && req.method === 'POST') {
+      const api = overlay.apis.find((item) => item.id === id)
+      if (!api) {
+        sendJson(res, 404, { error: 'not_found', message: '没有这条产品接口' })
+        return
+      }
+      const result = await probeProductApi(api)
+      sendJson(res, result.ok ? 200 : 502, result)
+      return
+    }
+
+    if (req.method === 'PUT') {
+      if (!overlay.apis.some((item) => item.id === id)) {
+        sendJson(res, 404, { error: 'not_found', message: '没有这条产品接口' })
+        return
+      }
+      const raw = await readBody(req, 64 * 1024)
+      const body = JSON.parse(raw.toString('utf8')) as Partial<ProductApi>
+      const api = upsertApi(overlay, { ...body, id })
+      await persistOverlay(config, overlay)
+      sendJson(res, 200, { api: publicApi(api) })
+      return
+    }
+
+    if (req.method === 'DELETE') {
+      if (!removeApi(overlay, id)) {
+        sendJson(res, 404, { error: 'not_found', message: '没有这条产品接口' })
+        return
+      }
+      await persistOverlay(config, overlay)
+      sendJson(res, 200, { ok: true })
+      return
+    }
+
+    sendJson(res, 405, { error: 'method_not_allowed' })
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      sendJson(res, 400, { error: 'bad_json' })
+      return
+    }
     adminError(res, error)
   }
 }

@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { handleAccountProbe, handleAdminMe, handleIntegrations, handlePlatformProbe } from './integrations'
+import { handleAccountProbe, handleAdminMe, handleIntegrations, handlePlatformProbe, handleProductApis } from './integrations'
 import { loadConfig, oidcConfigured, platformConfigured, type DaysConfig } from './config'
 import { recognizeWithPlatform, recognizeWithWwwFallback, type OcrKind } from './ai-ocr'
 import { consumeHandoff, issueHandoff } from './handoff'
@@ -335,8 +335,9 @@ export function createDaysServer(config: DaysConfig) {
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
     const path = url.pathname.replace(/\/+$/, '') || '/'
     try {
-      if (path === '/admin/integrations' && req.method === 'GET') {
-        redirect(res, `${defaultAppPath(config)}#admin/integrations`)
+      if ((path === '/admin' || path === '/admin/integrations' || path.startsWith('/admin/')) && req.method === 'GET') {
+        const hash = path === '/admin' || path === '/admin/' ? '#admin' : `#${path.replace(/^\//, '')}`
+        redirect(res, `${defaultAppPath(config)}${hash}`)
         return
       }
       if (path === '/api/days/health') {
@@ -362,6 +363,9 @@ export function createDaysServer(config: DaysConfig) {
       }
       if (path === '/api/days/admin/integrations/platform/test' && req.method === 'POST') {
         return void (await handlePlatformProbe(req, res, config))
+      }
+      if (path === '/api/days/admin/integrations/apis' || path.startsWith('/api/days/admin/integrations/apis/')) {
+        return void (await handleProductApis(req, res, url, config))
       }
       sendJson(res, 404, { error: 'not_found' })
     } catch (error) {

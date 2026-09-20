@@ -21,6 +21,26 @@ function stamp(item: unknown): number {
   return 0
 }
 
+function mergeTombstones(
+  mine: { id: string; deletedAt: number }[] = [],
+  theirs: { id: string; deletedAt: number }[] = [],
+) {
+  const merged = new Map<string, { id: string; deletedAt: number }>()
+  for (const item of [...mine, ...theirs]) {
+    const existing = merged.get(item.id)
+    if (!existing || item.deletedAt > existing.deletedAt) merged.set(item.id, item)
+  }
+  return [...merged.values()]
+}
+
+function rejectTombstoned<T extends Identified>(items: T[], tombstones: { id: string; deletedAt: number }[]): T[] {
+  const deleted = new Map(tombstones.map((item) => [item.id, item.deletedAt]))
+  return items.filter((item) => {
+    const at = deleted.get(item.id)
+    return at == null || stamp(item) > at
+  })
+}
+
 export function mergeById<T extends Identified>(mine: T[], theirs: T[]): T[] {
   const merged = new Map<string, T>()
   for (const item of mine) merged.set(item.id, item)
@@ -37,19 +57,21 @@ export function mergeById<T extends Identified>(mine: T[], theirs: T[]): T[] {
  */
 export function mergeAppData(preferred: AppData, other: AppData): AppData {
   const base = emptyData()
+  const tombstones = mergeTombstones(preferred.tombstones ?? [], other.tombstones ?? [])
   return {
     ...base,
     ...other,
     ...preferred,
-    todos: mergeById(preferred.todos ?? [], other.todos ?? []),
-    countdowns: mergeById(preferred.countdowns ?? [], other.countdowns ?? []),
-    notes: mergeById(preferred.notes ?? [], other.notes ?? []),
-    courses: mergeById(preferred.courses ?? [], other.courses ?? []),
-    exams: mergeById(preferred.exams ?? [], other.exams ?? []),
-    selfSchedules: mergeById(preferred.selfSchedules ?? [], other.selfSchedules ?? []),
-    calendarEvents: mergeById(preferred.calendarEvents ?? [], other.calendarEvents ?? []),
-    recurringReminders: mergeById(preferred.recurringReminders ?? [], other.recurringReminders ?? []),
+    todos: rejectTombstoned(mergeById(preferred.todos ?? [], other.todos ?? []), tombstones),
+    countdowns: rejectTombstoned(mergeById(preferred.countdowns ?? [], other.countdowns ?? []), tombstones),
+    notes: rejectTombstoned(mergeById(preferred.notes ?? [], other.notes ?? []), tombstones),
+    courses: rejectTombstoned(mergeById(preferred.courses ?? [], other.courses ?? []), tombstones),
+    exams: rejectTombstoned(mergeById(preferred.exams ?? [], other.exams ?? []), tombstones),
+    selfSchedules: rejectTombstoned(mergeById(preferred.selfSchedules ?? [], other.selfSchedules ?? []), tombstones),
+    calendarEvents: rejectTombstoned(mergeById(preferred.calendarEvents ?? [], other.calendarEvents ?? []), tombstones),
+    recurringReminders: rejectTombstoned(mergeById(preferred.recurringReminders ?? [], other.recurringReminders ?? []), tombstones),
     terms: mergeById(preferred.terms ?? [], other.terms ?? []),
+    tombstones,
   }
 }
 
@@ -79,6 +101,7 @@ export function fingerprint(data: AppData): string {
     data.selfSchedules,
     data.calendarEvents,
     data.recurringReminders,
+    data.tombstones,
     data.terms,
     data.currentTermId,
     data.reminderSettings,

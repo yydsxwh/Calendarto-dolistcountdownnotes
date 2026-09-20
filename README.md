@@ -16,7 +16,7 @@
 - **倒数日**：大数字卡片、颜色、表情、每年重复
 - **便签**：彩色便利贴，可钉住、可搜索
 
-数据存在浏览器 `localStorage`，无需登录。支持导出 / 导入 JSON 备份。换设备或清缓存会丢，云同步留给后续版本。
+数据存在浏览器 `localStorage`，无需登录也能用。登录账号中心后，网页和 Android 按同一个 OIDC `sub` 同步。
 
 Android 客户端用 Capacitor 包同一套网页：`com.yydsxwh.kemiao.days`，青春校园粉蓝火焰主题，上课/考试走系统本地通知。
 
@@ -31,10 +31,11 @@ npm run android:apk
 
 ```bash
 npm install
+npm run dev:bff   # 127.0.0.1:3120，登录 / 同步 / OCR
 npm run dev
 ```
 
-打开 http://localhost:5173
+打开 http://localhost:5173。未配置账号中心密钥时，离线功能仍可用。
 
 ```bash
 npm run lint

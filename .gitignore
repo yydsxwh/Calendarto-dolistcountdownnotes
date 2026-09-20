@@ -9,6 +9,8 @@ pnpm-debug.log*
 node_modules
 dist
 dist-ssr
+server/dist
+data
 *.local
 *.tsbuildinfo
 

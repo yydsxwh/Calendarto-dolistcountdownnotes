@@ -1,9 +1,9 @@
 import type { AppData } from '../types'
-import { siteApiUrl } from './note-doc'
+import { daysFetch } from './days-api'
 
 /**
- * 日事的云端是主站上的一个小同步服务，挂在同源的 /api/days/ 下，用主站登录态
- * 认人。浏览器不需要自己带 token：cookie 同源自动发送。
+ * 日事云端挂在 /api/days/sync。身份来自 rishi session（Cookie 或 Bearer），
+ * 客户端提交的 userId / sub 一律不是鉴权依据。
  */
 export const SYNC_PATH = '/api/days/sync'
 
@@ -33,7 +33,7 @@ async function readJson(response: Response): Promise<unknown> {
 export async function pullRemote(signal?: AbortSignal): Promise<RemoteSnapshot> {
   let response: Response
   try {
-    response = await fetch(siteApiUrl(SYNC_PATH), { credentials: 'include', cache: 'no-store', signal })
+    response = await daysFetch(SYNC_PATH, { signal })
   } catch {
     throw new SyncUnavailable('NETWORK')
   }
@@ -46,9 +46,8 @@ export async function pullRemote(signal?: AbortSignal): Promise<RemoteSnapshot> 
 export async function pushRemote(data: AppData, baseVersion: number): Promise<{ version: number; updatedAt: string }> {
   let response: Response
   try {
-    response = await fetch(siteApiUrl(SYNC_PATH), {
+    response = await daysFetch(SYNC_PATH, {
       method: 'PUT',
-      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data, baseVersion }),
     })

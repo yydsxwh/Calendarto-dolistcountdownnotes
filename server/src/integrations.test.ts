@@ -7,7 +7,8 @@ import { after, before, test } from 'node:test'
 import { decryptJson, encryptJson, secretHint } from './crypto'
 import { createDaysServer } from './index'
 import { loadConfig } from './config'
-import { probeAccount, probePlatform } from './integration-probe'
+import { probeAccount, probePlatform, probeProductApi } from './integration-probe'
+import { emptyOverlay, slugApiId, upsertApi } from './integration-store'
 import { issueSession } from './session'
 
 const BFF_PORT = 3932
@@ -47,6 +48,17 @@ before(async () => {
     if (url.pathname === '/ready') {
       res.writeHead(200, { 'content-type': 'application/json' })
       res.end(JSON.stringify({ status: 'ready' }))
+      return
+    }
+    if (url.pathname === '/v1/echo') {
+      const auth = req.headers.authorization || ''
+      if (auth !== 'Bearer api-secret') {
+        res.writeHead(401, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: 'unauthorized' }))
+        return
+      }
+      res.writeHead(200, { 'content-type': 'application/json' })
+      res.end(JSON.stringify({ ok: true }))
       return
     }
     if (url.pathname === '/v1/catalog/products') {
@@ -187,4 +199,68 @@ test('BFF 测试连接接口也要站长身份', async () => {
     headers: { cookie: cookieFor('usr_admin') },
   })
   assert.equal(ok.status, 200)
+})
+
+test('产品 API 不能占用 account / platform，密钥只写不读', async () => {
+  assert.equal(slugApiId('课表 助手'), '课表-助手')
+  const overlay = emptyOverlay()
+  assert.throws(() => upsertApi(overlay, { id: 'account', name: 'Account', baseUrl: 'https://x.example' }))
+  const cookie = cookieFor('usr_admin')
+  const created = await fetch(`http://127.0.0.1:${BFF_PORT}/api/days/admin/integrations/apis`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      name: '课表助手',
+      baseUrl: `http://127.0.0.1:${FAKE_PORT}`,
+      secret: 'api-secret',
+      testPath: '/v1/echo',
+      enabled: true,
+    }),
+  })
+  assert.equal(created.status, 200)
+  const createdBody = await created.json() as { api: { id: string; secret: { configured: boolean; hint: string } } }
+  assert.equal(createdBody.api.id, '课表-助手')
+  assert.equal(JSON.stringify(createdBody).includes('api-secret'), false)
+  assert.equal(createdBody.api.secret.configured, true)
+  assert.ok(createdBody.api.secret.hint.endsWith('cret'))
+
+  const listed = await (await fetch(`http://127.0.0.1:${BFF_PORT}/api/days/admin/integrations`, { headers: { cookie } })).json() as {
+    apis: { id: string; secret: { configured: boolean; hint: string } }[]
+  }
+  assert.equal(listed.apis.length, 1)
+  assert.equal(JSON.stringify(listed).includes('api-secret'), false)
+
+  const reserved = await fetch(`http://127.0.0.1:${BFF_PORT}/api/days/admin/integrations/apis`, {
+    method: 'POST',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ id: 'platform', name: 'Platform', baseUrl: 'https://x.example', secret: 'x' }),
+  })
+  assert.equal(reserved.status, 400)
+
+  const probed = await fetch(`http://127.0.0.1:${BFF_PORT}/api/days/admin/integrations/apis/${createdBody.api.id}/test`, {
+    method: 'POST',
+    headers: { cookie },
+  })
+  assert.equal(probed.status, 200)
+  const probeBody = await probed.json() as { ok: boolean; checks: { name: string; ok: boolean }[] }
+  assert.equal(probeBody.ok, true)
+  assert.ok(probeBody.checks.some((item) => item.name === 'request' && item.ok))
+
+  const direct = await probeProductApi({
+    id: 'echo',
+    name: 'echo',
+    baseUrl: `http://127.0.0.1:${FAKE_PORT}`,
+    authType: 'bearer',
+    headerName: 'Authorization',
+    secret: 'api-secret',
+    testPath: '/v1/echo',
+    enabled: true,
+  })
+  assert.equal(direct.ok, true)
+
+  const removed = await fetch(`http://127.0.0.1:${BFF_PORT}/api/days/admin/integrations/apis/${createdBody.api.id}`, {
+    method: 'DELETE',
+    headers: { cookie },
+  })
+  assert.equal(removed.status, 200)
 })

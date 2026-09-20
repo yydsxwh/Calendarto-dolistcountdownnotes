@@ -29,3 +29,8 @@ fi
 echo "Published $HOST:$DEST"
 echo "Open https://www.yydsxwh.com/products/days/"
 echo "Listing: https://www.yydsxwh.com/products"
+
+if [[ "${DEPLOY_SKIP_BFF:-}" != "1" ]]; then
+  echo "Also deploying BFF (set DEPLOY_SKIP_BFF=1 to skip)"
+  bash "$ROOT/scripts/deploy-days-bff.sh"
+fi

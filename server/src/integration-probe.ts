@@ -1,4 +1,6 @@
 import { createPkcePair } from './crypto'
+import type { ProductApi } from './integration-store'
+import type { ProductApi } from './integration-store'
 
 export type ProbeCheck = { name: string; ok: boolean; detail: string }
 
@@ -169,6 +171,57 @@ export async function probePlatform(input: {
       name: 'service_auth',
       ok: false,
       detail: error instanceof Error ? error.message : '服务身份请求失败',
+    })
+  }
+
+  return { ok: checks.every((item) => item.ok), checks }
+}
+
+export async function probeProductApi(api: ProductApi): Promise<{ ok: boolean; checks: ProbeCheck[] }> {
+  const checks: ProbeCheck[] = []
+  let base: URL
+  try {
+    base = new URL(api.baseUrl)
+    if (base.protocol !== 'http:' && base.protocol !== 'https:') throw new Error('bad protocol')
+    checks.push({ name: 'base_url', ok: true, detail: base.origin })
+  } catch {
+    return { ok: false, checks: [{ name: 'base_url', ok: false, detail: '接口地址必须是 http(s) URL' }] }
+  }
+
+  const path = api.testPath.startsWith('/') ? api.testPath : `/${api.testPath || 'health'}`
+  let url: URL
+  try {
+    url = new URL(path, base)
+  } catch {
+    return { ok: false, checks: [...checks, { name: 'test_path', ok: false, detail: '测试路径不合法' }] }
+  }
+
+  const headers: Record<string, string> = { accept: 'application/json, text/plain, */*' }
+  if (api.secret) {
+    if (api.authType === 'header') headers[api.headerName || 'Authorization'] = api.secret
+    else headers.authorization = `Bearer ${api.secret}`
+  }
+
+  try {
+    const res = await fetch(url, { method: 'GET', headers, signal: AbortSignal.timeout(8000) })
+    const ok = res.status >= 200 && res.status < 400
+    checks.push({
+      name: 'request',
+      ok,
+      detail: `${url.pathname} ${res.status}`,
+    })
+    if (res.status === 401 || res.status === 403) {
+      checks.push({ name: 'auth', ok: false, detail: '密钥被拒绝' })
+    } else if (api.secret) {
+      checks.push({ name: 'auth', ok: true, detail: '已带密钥请求' })
+    } else {
+      checks.push({ name: 'auth', ok: true, detail: '未配置密钥，按公开接口探测' })
+    }
+  } catch (error) {
+    checks.push({
+      name: 'request',
+      ok: false,
+      detail: error instanceof Error ? error.message : '请求失败',
     })
   }
 

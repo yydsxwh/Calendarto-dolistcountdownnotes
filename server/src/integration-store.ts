@@ -3,6 +3,19 @@ import { join } from 'node:path'
 import type { DaysConfig } from './config'
 import { decryptJson, encryptJson } from './crypto'
 
+export type ProductApiAuth = 'bearer' | 'header'
+
+export type ProductApi = {
+  id: string
+  name: string
+  baseUrl: string
+  authType: ProductApiAuth
+  headerName: string
+  secret: string
+  testPath: string
+  enabled: boolean
+}
+
 export type IntegrationOverlay = {
   account: {
     issuer: string
@@ -18,13 +31,27 @@ export type IntegrationOverlay = {
     serviceToken: string
     enabled: boolean
   }
+  apis: ProductApi[]
 }
+
+export const RESERVED_API_IDS = new Set(['account', 'platform'])
 
 export function emptyOverlay(): IntegrationOverlay {
   return {
     account: { issuer: '', clientId: '', clientSecret: '', redirectUri: '', scopes: '', enabled: false },
     platform: { apiUrl: '', clientId: '', serviceToken: '', enabled: false },
+    apis: [],
   }
+}
+
+export function slugApiId(raw: string) {
+  const slug = raw
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40)
+  return slug
 }
 
 function storePath(config: DaysConfig) {
@@ -44,6 +71,7 @@ export async function readOverlay(config: DaysConfig): Promise<IntegrationOverla
     return {
       account: { ...emptyOverlay().account, ...parsed.account },
       platform: { ...emptyOverlay().platform, ...parsed.platform },
+      apis: Array.isArray(parsed.apis) ? parsed.apis.map(normalizeApi).filter(Boolean) as ProductApi[] : [],
     }
   } catch {
     return emptyOverlay()
@@ -82,11 +110,13 @@ export function mergeOverlay(
   patch: {
     account?: Partial<IntegrationOverlay['account']>
     platform?: Partial<IntegrationOverlay['platform']>
+    apis?: ProductApi[]
   },
 ): IntegrationOverlay {
-  const next = {
+  const next: IntegrationOverlay = {
     account: { ...current.account },
     platform: { ...current.platform },
+    apis: current.apis.map((item) => ({ ...item })),
   }
   if (patch.account) {
     for (const [key, value] of Object.entries(patch.account)) {
@@ -100,5 +130,50 @@ export function mergeOverlay(
       if (value !== undefined) (next.platform as Record<string, unknown>)[key] = value
     }
   }
+  if (patch.apis) next.apis = patch.apis.map(normalizeApi).filter(Boolean) as ProductApi[]
   return next
+}
+
+function normalizeApi(raw: Partial<ProductApi> | null | undefined): ProductApi | null {
+  if (!raw) return null
+  const id = slugApiId(raw.id || raw.name || '')
+  if (!id || RESERVED_API_IDS.has(id)) return null
+  return {
+    id,
+    name: String(raw.name || id).trim().slice(0, 40),
+    baseUrl: String(raw.baseUrl || '').trim(),
+    authType: raw.authType === 'header' ? 'header' : 'bearer',
+    headerName: String(raw.headerName || 'Authorization').trim() || 'Authorization',
+    secret: String(raw.secret || ''),
+    testPath: String(raw.testPath || '/health').trim() || '/health',
+    enabled: Boolean(raw.enabled),
+  }
+}
+
+export function upsertApi(current: IntegrationOverlay, input: Partial<ProductApi> & { id?: string }): ProductApi {
+  const existing = input.id ? current.apis.find((item) => item.id === input.id) : undefined
+  const next = normalizeApi({
+    ...existing,
+    ...input,
+    secret: input.secret?.trim() ? input.secret : existing?.secret || '',
+    id: input.id || input.name || existing?.id,
+  })
+  if (!next) throw new Error('BAD_API')
+  const index = current.apis.findIndex((item) => item.id === next.id)
+  if (index >= 0) current.apis[index] = next
+  else {
+    if (current.apis.length >= 20) throw new Error('TOO_MANY_APIS')
+    current.apis.push(next)
+  }
+  return next
+}
+
+export function removeApi(current: IntegrationOverlay, id: string): boolean {
+  const before = current.apis.length
+  current.apis = current.apis.filter((item) => item.id !== id)
+  return current.apis.length !== before
+}
+
+export function getEnabledProductApi(overlay: IntegrationOverlay, id: string): ProductApi | null {
+  return overlay.apis.find((item) => item.id === id && item.enabled && item.secret) || null
 }

@@ -192,9 +192,23 @@ export default function AdminIntegrations() {
         return
       }
       setData({ ...body, apis: body.apis || [] })
-      setAccount((prev) => ({ ...prev, clientSecret: '' }))
-      setPlatform((prev) => ({ ...prev, serviceToken: '' }))
-      setNotice('已保存。密钥只写不读，页面不再显示明文。')
+      setAccount((prev) => ({
+        ...prev,
+        clientSecret: '',
+        enabled: body.account.enabled || body.account.clientSecret.configured,
+      }))
+      setPlatform((prev) => ({
+        ...prev,
+        serviceToken: '',
+        enabled: body.platform.enabled || body.platform.serviceToken.configured,
+      }))
+      if (account.clientSecret.trim() && !body.account.clientSecret.configured) {
+        setError('Client Secret 没有写上，请再保存一次')
+      } else if (body.account.clientSecret.configured) {
+        setNotice(`已保存。${secretLabel(body.account.clientSecret)}。输入框会清空，这是只写字段；留空再保存不会覆盖。`)
+      } else {
+        setNotice('已保存。Account Client Secret 仍未配置。')
+      }
     } catch {
       setError('保存失败')
     } finally {
@@ -429,11 +443,16 @@ export default function AdminIntegrations() {
                 className="input"
                 type="password"
                 autoComplete="new-password"
-                placeholder={data ? secretLabel(data.account.clientSecret) : '未配置'}
+                placeholder={data?.account.clientSecret.configured ? '要更换才再输入' : '尚未保存'}
                 value={account.clientSecret}
                 onChange={(e) => setAccount((prev) => ({ ...prev, clientSecret: e.target.value }))}
               />
             </label>
+            <p className="muted">
+              {data?.account.clientSecret.configured
+                ? `${secretLabel(data.account.clientSecret)}。保存后输入框会空着，密钥仍在服务器上；留空再保存不会删掉。`
+                : '还没保存过密钥。填好后点「保存 Account」。'}
+            </p>
             <label>
               ACCOUNT_REDIRECT_URI
               <input className="input" value={account.redirectUri} onChange={(e) => setAccount((prev) => ({ ...prev, redirectUri: e.target.value }))} />
@@ -481,11 +500,16 @@ export default function AdminIntegrations() {
                 className="input"
                 type="password"
                 autoComplete="new-password"
-                placeholder={data ? secretLabel(data.platform.serviceToken) : '未配置'}
+                placeholder={data?.platform.serviceToken.configured ? '要更换才再输入' : '尚未保存'}
                 value={platform.serviceToken}
                 onChange={(e) => setPlatform((prev) => ({ ...prev, serviceToken: e.target.value }))}
               />
             </label>
+            <p className="muted">
+              {data?.platform.serviceToken.configured
+                ? `${secretLabel(data.platform.serviceToken)}。保存后输入框会空着，密钥仍在服务器上；留空再保存不会删掉。`
+                : '还没保存过服务凭证。'}
+            </p>
             <div className="row wrap">
               <button className="btn primary" type="button" onClick={() => void saveCore()} disabled={saving}>
                 {saving ? '保存中…' : '保存 Platform'}

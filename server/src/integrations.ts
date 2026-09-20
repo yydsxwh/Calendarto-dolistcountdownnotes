@@ -30,20 +30,22 @@ function publicApi(api: ProductApi) {
 }
 
 function publicIntegrations(config: DaysConfig, overlay: IntegrationOverlay) {
+  const accountSecret = overlay.account.clientSecret || config.accountClientSecret
+  const platformToken = overlay.platform.serviceToken || config.platformServiceToken
   return {
     account: {
       issuer: config.accountIssuer,
       clientId: config.accountClientId,
-      clientSecret: secretHint(config.accountClientSecret),
+      clientSecret: secretHint(accountSecret),
       redirectUri: config.accountRedirectUri,
       scopes: config.accountScopes,
-      enabled: overlay.account.enabled || oidcConfigured(config),
+      enabled: overlay.account.enabled || oidcConfigured(config) || Boolean(accountSecret),
     },
     platform: {
       apiUrl: config.platformBaseUrl,
       clientId: config.platformClientId,
-      serviceToken: secretHint(config.platformServiceToken),
-      enabled: overlay.platform.enabled || platformConfigured(config),
+      serviceToken: secretHint(platformToken),
+      enabled: overlay.platform.enabled || platformConfigured(config) || Boolean(platformToken),
     },
     apis: overlay.apis.map(publicApi),
     encryptionKeyConfigured: Boolean(encryptionKeyFrom(config)),

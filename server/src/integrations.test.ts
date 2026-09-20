@@ -195,6 +195,19 @@ test('GET 不返回 secret 明文，PUT 后仍只显示已配置', async () => {
   assert.equal(body.account.clientSecret.configured, true)
   assert.ok(body.account.clientSecret.hint.endsWith('cret'))
   assert.equal(config.accountClientSecret, 'ys_new_secret')
+
+  const again = await fetch(`http://127.0.0.1:${BFF_PORT}/api/days/admin/integrations`, {
+    method: 'PUT',
+    headers: { cookie, 'content-type': 'application/json' },
+    body: JSON.stringify({
+      account: { clientSecret: 'ys_disabled_secret', enabled: false, issuer: `http://127.0.0.1:${FAKE_PORT}` },
+    }),
+  })
+  assert.equal(again.status, 200)
+  const againBody = await again.json() as { account: { clientSecret: { configured: boolean; hint: string }; enabled: boolean } }
+  assert.equal(againBody.account.clientSecret.configured, true)
+  assert.ok(againBody.account.clientSecret.hint.endsWith('cret'))
+  assert.equal(againBody.account.enabled, true)
 })
 
 test('Account / Platform 测试连接覆盖 discovery 与服务身份', async () => {

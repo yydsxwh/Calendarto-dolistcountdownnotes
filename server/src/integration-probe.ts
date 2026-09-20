@@ -1,6 +1,5 @@
 import { createPkcePair } from './crypto'
 import type { ProductApi } from './integration-store'
-import type { ProductApi } from './integration-store'
 
 export type ProbeCheck = { name: string; ok: boolean; detail: string }
 

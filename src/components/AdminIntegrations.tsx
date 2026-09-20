@@ -56,12 +56,23 @@ function secretLabel(hint: SecretHint) {
   return hint.hint ? `已配置 ${hint.hint}` : '已配置'
 }
 
-function emptyApiDraft() {
+type ApiDraft = {
+  id: string
+  name: string
+  baseUrl: string
+  authType: 'bearer' | 'header'
+  headerName: string
+  secret: string
+  testPath: string
+  enabled: boolean
+}
+
+function emptyApiDraft(): ApiDraft {
   return {
     id: '',
     name: '',
     baseUrl: '',
-    authType: 'bearer' as const,
+    authType: 'bearer',
     headerName: 'Authorization',
     secret: '',
     testPath: '/health',

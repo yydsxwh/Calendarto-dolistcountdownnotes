@@ -17,8 +17,9 @@ npm run build:server
 scp -i "$KEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
   "$ROOT/server/dist/index.mjs" "$HOST:/tmp/kemiao-days-sync.mjs"
 scp -i "$KEY" -o IdentitiesOnly=yes \
-  "$ROOT/server/days-sync/nginx-days-sync.conf" "$HOST:/tmp/nginx-days-sync.conf" \
-  "$ROOT/scripts/bootstrap-days-prod-env.sh" "$HOST:/tmp/bootstrap-days-prod-env.sh"
+  "$ROOT/server/days-sync/nginx-days-sync.conf" \
+  "$ROOT/scripts/bootstrap-days-prod-env.sh" \
+  "$HOST:/tmp/"
 
 ssh -i "$KEY" -o IdentitiesOnly=yes "$HOST" "set -e
   sudo mkdir -p '$REMOTE_DIR'

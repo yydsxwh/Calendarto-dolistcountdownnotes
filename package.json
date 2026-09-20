@@ -21,6 +21,8 @@
     "deploy:days": "bash scripts/deploy-days.sh",
     "build:android": "tsc -b && vite build --base=./ && npx cap sync android",
     "android:apk": "bash scripts/build-android-apk.sh",
+    "android:native": "cd android-native && ./gradlew assembleDebug",
+    "android:native:test": "cd android-native && ./gradlew testDebugUnitTest",
     "build:ios": "tsc -b && vite build && (npx cap add ios || true) && npx cap sync ios",
     "ios:simulator": "npm run build:ios && xcodebuild -workspace ios/App/App.xcworkspace -scheme App -sdk iphonesimulator -configuration Debug -derivedDataPath ios-build CODE_SIGNING_ALLOWED=NO build",
     "desktop:win": "npm run build && electron-builder --win --x64 --publish never"

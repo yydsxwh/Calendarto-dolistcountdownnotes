@@ -2,6 +2,7 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -19,6 +20,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # Electron's binary is only needed to package the desktop build.
       - name: Install dependencies
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
@@ -27,9 +29,11 @@ jobs:
         run: npm run lint
       - name: Typecheck
         run: npm run typecheck
-      - name: Test
+      - name: Test server and authentication
         run: npm test
       - name: Test timetable import
         run: npm run test:timetable
       - name: Build web
         run: npm run build
+      - name: Build server
+        run: npm run build:server

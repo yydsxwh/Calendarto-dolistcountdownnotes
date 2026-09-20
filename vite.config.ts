@@ -4,9 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => ({
   plugins: [react()],
-  // 开发/预览用根路径；生产构建挂到主站 /products/days/ 子路径，
-  // 否则 index.html 会把 JS/CSS 指到 /assets/...（主站根路径）导致 404 白屏。
-  // Android/iOS 壳用 --base=./ 覆盖，Electron 用相对路径，均不受影响。
+  // Web 生产构建仍挂在主站 /products/days/；Android/iOS 壳用 --base=./ 覆盖。
   base: command === 'build' ? '/products/days/' : '/',
   server: {
     host: true,
@@ -18,6 +16,13 @@ export default defineConfig(({ command }) => ({
         changeOrigin: true,
         secure: true,
       },
+      // 统一账号登录与跨设备同步走本机日事 BFF（npm run dev:server）。
+      ...Object.fromEntries(
+        ['/api/auth', '/api/sync', '/api/todos', '/api/health'].map((path) => [
+          path,
+          { target: 'http://127.0.0.1:3100', changeOrigin: false, secure: false },
+        ]),
+      ),
     },
   },
 }))

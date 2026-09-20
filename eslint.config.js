@@ -5,10 +5,21 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist', 'android', 'src/**/*.selftest.ts', 'scripts', 'capacitor.config.ts'] },
+  {
+    ignores: [
+      'dist',
+      'dist-server',
+      'android',
+      'ios',
+      'src/**/*.selftest.ts',
+      'scripts',
+      'capacitor.config.ts',
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
+    ignores: ['server/**', 'vitest.config.ts'],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
@@ -23,6 +34,19 @@ export default tseslint.config(
         'warn',
         { allowConstantExport: true },
       ],
+    },
+  },
+  // The BFF runs on Node, not in a browser.
+  {
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
+    files: ['server/**/*.ts', 'vite.config.ts', 'vitest.config.ts'],
+    languageOptions: {
+      ecmaVersion: 2022,
+      globals: { ...globals.node },
+    },
+    rules: {
+      // Credentials must never be interpolated into a log or an error string.
+      'no-console': 'error',
     },
   },
 )

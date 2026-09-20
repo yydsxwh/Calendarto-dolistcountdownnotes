@@ -8,9 +8,24 @@ pnpm-debug.log*
 
 node_modules
 dist
+dist-server
 dist-ssr
 *.local
 *.tsbuildinfo
+
+# Secrets and local runtime state for the BFF.
+# Only .env.example belongs in git; real secrets never do.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+var/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
 
 # Editor directories and files
 .vscode/*

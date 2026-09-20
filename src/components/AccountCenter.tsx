@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { daysFetch } from '../lib/days-api'
 import { ACCOUNT_CENTER_URL, avatarInitial, loginUrl, logoutUrl } from '../lib/site-session'
 import { clearNativeSession, startNativeLogin } from '../lib/native-auth'
 import { isNativeApp } from '../lib/native'
@@ -33,7 +34,23 @@ function relativeTime(at: number | null): string {
 
 export default function AccountCenter({ sync, data }: { sync: CloudSync; data: AppData }) {
   const [open, setOpen] = useState(false)
+  const [admin, setAdmin] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void daysFetch('/api/days/admin/me')
+      .then((res) => (res.ok ? res.json() : { admin: false }))
+      .then((body: { admin?: boolean }) => {
+        if (!cancelled) setAdmin(Boolean(body.admin))
+      })
+      .catch(() => {
+        if (!cancelled) setAdmin(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -136,6 +153,7 @@ export default function AccountCenter({ sync, data }: { sync: CloudSync; data: A
           </dl>
 
           <div className="account-links">
+            {admin ? <a href="#admin/integrations">集成设置</a> : null}
             <a href={`${ACCOUNT_CENTER_URL}/`} target="_blank" rel="noreferrer">
               账号中心设置
             </a>

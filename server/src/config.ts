@@ -18,6 +18,8 @@ export type DaysConfig = {
   platformClientId: string
   wwwOcrUrl: string
   nativeHandoffUri: string
+  adminSubs: string[]
+  configEncryptionKey: string
 }
 
 function splitList(value: string | undefined, fallback: string): string[] {
@@ -54,13 +56,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DaysConfig {
     accountClientId: env.ACCOUNT_CLIENT_ID || 'rishi',
     accountClientSecret: env.ACCOUNT_CLIENT_SECRET || '',
     accountRedirectUri: env.ACCOUNT_REDIRECT_URI || `${publicOrigin}/api/days/auth/callback`,
-    accountScopes: env.ACCOUNT_SCOPES || 'openid profile email offline_access',
+    accountScopes: env.ACCOUNT_SCOPES || 'openid profile email offline_access account.basic',
     wwwSessionUrl: env.DAYS_SYNC_SESSION_URL || 'https://www.yydsxwh.com/api/auth/session',
-    platformBaseUrl: (env.PLATFORM_BASE_URL || '').replace(/\/+$/, ''),
+    platformBaseUrl: (env.PLATFORM_API_URL || env.PLATFORM_BASE_URL || '').replace(/\/+$/, ''),
     platformServiceToken: env.PLATFORM_SERVICE_TOKEN || '',
     platformClientId: env.PLATFORM_CLIENT_ID || 'rishi',
     wwwOcrUrl: env.DAYS_OCR_FALLBACK_URL || 'https://www.yydsxwh.com/api/days/timetable-ocr',
     nativeHandoffUri: env.RISHI_NATIVE_HANDOFF_URI || 'kemiao-days://auth',
+    adminSubs: splitList(env.RISHI_ADMIN_SUBS, ''),
+    configEncryptionKey: env.RISHI_CONFIG_ENCRYPTION_KEY || '',
   }
 }
 

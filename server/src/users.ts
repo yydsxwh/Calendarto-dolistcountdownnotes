@@ -9,6 +9,8 @@ export type RishiUser = {
   displayName: string
   email: string
   avatarUrl: string
+  role?: string
+  roles?: string[]
   createdAt: string
   lastLoginAt: string
   legacyUserIds: string[]
@@ -29,6 +31,12 @@ export async function upsertUser(config: DaysConfig, claims: IdTokenClaims): Pro
     displayName: claims.name || claims.preferred_username || existing?.displayName || '我',
     email: claims.email || existing?.email || '',
     avatarUrl: claims.picture || existing?.avatarUrl || '',
+    role: claims.role || existing?.role,
+    roles: Array.isArray(claims.roles)
+      ? claims.roles.map(String)
+      : typeof claims.roles === 'string' && claims.roles.trim()
+        ? claims.roles.split(/[,\s]+/).filter(Boolean)
+        : existing?.roles,
     createdAt: existing?.createdAt || now,
     lastLoginAt: now,
     legacyUserIds: existing?.legacyUserIds || [],

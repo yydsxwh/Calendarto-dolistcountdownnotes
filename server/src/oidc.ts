@@ -15,6 +15,8 @@ export type IdTokenClaims = {
   email?: string
   email_verified?: boolean
   preferred_username?: string
+  role?: string
+  roles?: string[] | string
 }
 
 export class OidcError extends Error {

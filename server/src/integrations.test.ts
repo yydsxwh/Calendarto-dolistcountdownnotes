@@ -110,6 +110,19 @@ function cookieFor(sub: string) {
   return `rishi_session=${issueSession({ sub, name: sub, email: '', avatarUrl: '' }, config).token}`
 }
 
+test('Account 默认配置不含伪造 Client Secret', () => {
+  const defaults = loadConfig({
+    NODE_ENV: 'test',
+    DAYS_SYNC_DATA_DIR: dataDir,
+    RISHI_SESSION_SECRET: 'test-session-secret',
+  })
+  assert.equal(defaults.accountIssuer, 'https://account.yydsxwh.com')
+  assert.equal(defaults.accountClientId, 'rishi')
+  assert.equal(defaults.accountClientSecret, '')
+  assert.equal(defaults.accountRedirectUri, 'https://www.yydsxwh.com/api/days/auth/callback')
+  assert.equal(defaults.accountScopes, 'openid profile email')
+})
+
 test('encryptJson 往返，明文不出现在密文里', () => {
   const secret = 'ys_super_secret'
   const packed = encryptJson({ ACCOUNT_CLIENT_SECRET: secret }, 'key')

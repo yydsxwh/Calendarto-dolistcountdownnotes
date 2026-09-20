@@ -17,7 +17,8 @@ npm run build:server
 scp -i "$KEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new \
   "$ROOT/server/dist/index.mjs" "$HOST:/tmp/kemiao-days-sync.mjs"
 scp -i "$KEY" -o IdentitiesOnly=yes \
-  "$ROOT/server/days-sync/nginx-days-sync.conf" "$HOST:/tmp/nginx-days-sync.conf"
+  "$ROOT/server/days-sync/nginx-days-sync.conf" "$HOST:/tmp/nginx-days-sync.conf" \
+  "$ROOT/scripts/bootstrap-days-prod-env.sh" "$HOST:/tmp/bootstrap-days-prod-env.sh"
 
 ssh -i "$KEY" -o IdentitiesOnly=yes "$HOST" "set -e
   sudo mkdir -p '$REMOTE_DIR'
@@ -25,10 +26,17 @@ ssh -i "$KEY" -o IdentitiesOnly=yes "$HOST" "set -e
   sudo mv /tmp/kemiao-days-sync.mjs '$REMOTE_DIR/index.mjs'
   sudo mkdir -p /etc/nginx/snippets
   sudo mv /tmp/nginx-days-sync.conf /etc/nginx/snippets/kemiao-days-sync.conf
+  if ! grep -q 'kemiao-days-sync.conf' /etc/nginx/sites-enabled/* /etc/nginx/conf.d/* 2>/dev/null; then
+    echo 'WARN: include snippets/kemiao-days-sync.conf 可能还没写进站点配置'
+  fi
+  chmod +x /tmp/bootstrap-days-prod-env.sh
+  sudo /tmp/bootstrap-days-prod-env.sh
+  rm -f /tmp/bootstrap-days-prod-env.sh
   if ! sudo nginx -t; then
     echo 'nginx -t failed; not reloading nginx' >&2
     exit 1
   fi
+  sudo systemctl daemon-reload
   sudo systemctl reload nginx
   if systemctl list-unit-files | grep -q kemiao-days-sync; then
     sudo systemctl restart kemiao-days-sync

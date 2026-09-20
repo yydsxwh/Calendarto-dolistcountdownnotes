@@ -16,9 +16,11 @@ echo "sdk.dir=$ANDROID_HOME" > local.properties
 ./gradlew bundleRelease
 ```
 
+- 启动器名称：`颗秒日事v1`（`applicationId` 仍是 `com.yydsxwh.kemiao.days`，图标沿用现有粉蓝火焰）
+- 网站侧载 APK：`./gradlew assembleWebsite` → `app/build/outputs/apk/website/app-website.apk`（debug 签名，无 `.debug` 后缀）
 - Debug APK：`app/build/outputs/apk/debug/app-debug.apk`（applicationId 带 `.debug` 后缀，方便与正式包并存）
 - Release AAB：`app/build/outputs/bundle/release/app-release.aab`
-- Release 上架需由所有者提供正式签名，仓库不放密钥。可用 `android/app/build.gradle` 同一套 `signingConfigs` 思路，在本机 `keystore.properties`（已 gitignore）注入。
+- Play / 正式签名、隐私政策待所有者提供，仓库不放密钥。
 
 仓库根目录也可以：
 

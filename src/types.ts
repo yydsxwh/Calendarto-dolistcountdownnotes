@@ -53,7 +53,7 @@ export const SELF_SCHEDULE_COLORS = ['#2563eb','#16a34a','#f97316','#e11d48','#7
 export const CALENDAR_EVENT_COLORS = ['#2563eb','#16a34a','#f97316','#e11d48','#7c3aed','#0891b2','#ca8a04'] as const
 export const defaultReminderSettings = (): ReminderSettings => ({ enabled: true, classDefaultMinutes: 15, examDefaultMinutes: 1440, eventDefaultMinutes: 15, todoDefaultMinutes: 15, selfScheduleDefaultMinutes: 10, examAlsoHourBefore: true })
 export const EXAM_KIND_LABEL: Record<ExamKind,string> = { midterm:'期中', final:'期末', makeup:'补考', other:'其他' }
-export interface Todo { id:string; title:string; done:boolean; dueDate?:string; dueTime?:string; priority:Priority; remindMinutes:number; createdAt:number }
+export interface Todo { id:string; title:string; done:boolean; dueDate?:string; dueTime?:string; dueEndTime?:string; priority:Priority; remindMinutes:number; createdAt:number }
 export interface Countdown { id:string; title:string; date:string; color:string; emoji:string; repeatYearly:boolean; createdAt:number }
 export interface Note { id:string; title:string; body:string; color:string; pinned:boolean; date?:string; updatedAt:number }
 export interface AppData { todos:Todo[]; countdowns:Countdown[]; notes:Note[]; courses:Course[]; exams:Exam[]; selfSchedules:SelfScheduleItem[]; calendarEvents:CalendarEvent[]; recurringReminders:RecurringReminder[]; reminderSettings:ReminderSettings; terms:Term[]; currentTermId?:string; timetableView:TimetableViewSettings; termStart?:string }

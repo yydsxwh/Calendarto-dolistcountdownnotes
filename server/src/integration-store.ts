@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { DaysConfig } from './config'
@@ -48,10 +49,13 @@ export function slugApiId(raw: string) {
   const slug = raw
     .trim()
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 40)
-  return slug
+  if (slug) return slug
+  const seed = raw.trim()
+  if (!seed) return ''
+  return `api-${createHash('sha256').update(seed).digest('hex').slice(0, 10)}`
 }
 
 function storePath(config: DaysConfig) {

@@ -169,8 +169,8 @@ export async function handleProductApis(req: IncomingMessage, res: ServerRespons
     const overlay = await readOverlay(config)
     const parts = url.pathname.replace(/\/+$/, '').split('/')
     const afterApis = parts.slice(parts.indexOf('apis') + 1)
-    const id = afterApis[0] || ''
-    const action = afterApis[1] || ''
+    const id = decodeURIComponent(afterApis[0] || '')
+    const action = decodeURIComponent(afterApis[1] || '')
 
     if (!id) {
       if (req.method === 'GET') {

@@ -202,7 +202,7 @@ test('BFF 测试连接接口也要站长身份', async () => {
 })
 
 test('产品 API 不能占用 account / platform，密钥只写不读', async () => {
-  assert.equal(slugApiId('课表 助手'), '课表-助手')
+  assert.match(slugApiId('课表 助手'), /^api-[0-9a-f]{10}$/)
   const overlay = emptyOverlay()
   assert.throws(() => upsertApi(overlay, { id: 'account', name: 'Account', baseUrl: 'https://x.example' }))
   const cookie = cookieFor('usr_admin')
@@ -219,7 +219,7 @@ test('产品 API 不能占用 account / platform，密钥只写不读', async ()
   })
   assert.equal(created.status, 200)
   const createdBody = await created.json() as { api: { id: string; secret: { configured: boolean; hint: string } } }
-  assert.equal(createdBody.api.id, '课表助手')
+  assert.match(createdBody.api.id, /^api-[0-9a-f]{10}$/)
   assert.equal(JSON.stringify(createdBody).includes('api-secret'), false)
   assert.equal(createdBody.api.secret.configured, true)
   assert.ok(createdBody.api.secret.hint.endsWith('cret'))

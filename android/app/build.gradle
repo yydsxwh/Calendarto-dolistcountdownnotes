@@ -17,8 +17,8 @@ android {
         applicationId "com.yydsxwh.kemiao.days"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 8
-        versionName "2.0"
+        versionCode 9
+        versionName "2.1"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
@@ -40,19 +40,16 @@ android {
             // 都靠反射找类，所以这里保持关闭；要开需要先补完整的 keep 规则。
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
-            if (hasReleaseSigning) {
-                signingConfig signingConfigs.release
-            }
+            // 没有正式 keystore 时用 debug 签名，保证官网下载包可直接安装。
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
         }
     }
 }
 
-// 没有正式签名时明确说出来，免得 CI 悄悄产出一个装不上的未签名包
 gradle.taskGraph.whenReady {
     if (!hasReleaseSigning) {
-        logger.lifecycle('[kemiao-days] 未配置正式签名，release APK 将是未签名产物；' +
-                '请在 CI 配置 ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD / ' +
-                'ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD')
+        logger.lifecycle('[kemiao-days] 未配置正式签名，release APK 使用 debug 签名上线；' +
+                '正式 keystore 可后续通过 ANDROID_KEYSTORE_* 环境变量接入')
     }
 }
 

@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'com.yydsxwh.kemiao.days',
-  appName: '颗秒日事',
+  appName: '颗秒日事v2',
   webDir: 'dist',
   server: {
     androidScheme: 'https',

@@ -35,12 +35,17 @@ sdkmanager --sdk_root="$SDK" \
 printf 'sdk.dir=%s\n' "$SDK" > "$ROOT/android/local.properties"
 
 cd "$ROOT/android"
-./gradlew assembleDebug --no-daemon
-APK="$ROOT/android/app/build/outputs/apk/debug/app-debug.apk"
+./gradlew assembleRelease assembleDebug --no-daemon
+RELEASE_APK="$ROOT/android/app/build/outputs/apk/release/app-release.apk"
+DEBUG_APK="$ROOT/android/app/build/outputs/apk/debug/app-debug.apk"
+APK="${RELEASE_APK}"
+if [[ ! -f "$APK" ]]; then
+  APK="$DEBUG_APK"
+fi
 if [[ -f "$APK" ]]; then
   mkdir -p /opt/cursor/artifacts
-  cp "$APK" /opt/cursor/artifacts/kemiao-days-campus-debug.apk
+  cp "$APK" /opt/cursor/artifacts/kemiao-days-v2.apk
   cp "$APK" "$ROOT/android/app-debug.apk"
   echo "APK $APK"
-  echo "Copied to /opt/cursor/artifacts/kemiao-days-campus-debug.apk"
+  echo "Copied to /opt/cursor/artifacts/kemiao-days-v2.apk"
 fi

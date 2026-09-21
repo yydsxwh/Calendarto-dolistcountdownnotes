@@ -17,13 +17,25 @@ npx vite build --base=/products/days/
 ssh -i "$KEY" -o IdentitiesOnly=yes "$HOST" "mkdir -p '$DEST'"
 scp -i "$KEY" -o IdentitiesOnly=yes -r "$ROOT/dist/." "$HOST:$DEST/"
 
-APK_SRC="${DEPLOY_APK_FILE:-$ROOT/android/app/build/outputs/apk/debug/app-debug.apk}"
-if [[ -f "$APK_SRC" ]]; then
+APK_SRC="${DEPLOY_APK_FILE:-}"
+if [[ -z "$APK_SRC" ]]; then
+  for candidate in \
+    "$ROOT/android/app/build/outputs/apk/release/app-release.apk" \
+    "$ROOT/android-native/app/build/outputs/apk/website/app-website.apk" \
+    "$ROOT/android/app/build/outputs/apk/debug/app-debug.apk"
+  do
+    if [[ -f "$candidate" ]]; then
+      APK_SRC="$candidate"
+      break
+    fi
+  done
+fi
+if [[ -n "${APK_SRC:-}" && -f "$APK_SRC" ]]; then
   scp -i "$KEY" -o IdentitiesOnly=yes "$APK_SRC" "$HOST:$DEST/kemiao-days.apk"
-  echo "Published Android APK $HOST:$DEST/kemiao-days.apk"
+  echo "Published Android APK $APK_SRC -> $HOST:$DEST/kemiao-days.apk"
   echo "Serve that file with scripts/nginx-kemiao-days-apk.conf (exact location, not SPA try_files)."
 else
-  echo "No APK at $APK_SRC; skip install-package upload. Run npm run android:apk first."
+  echo "No APK found; skip install-package upload. Run npm run android:apk or assembleRelease first."
 fi
 
 echo "Published $HOST:$DEST"

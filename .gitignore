@@ -37,3 +37,8 @@ android/captures
 *.apk
 *.aab
 *.ap_
+
+# Android 正式签名：keystore 与密码只在 CI Secrets / 本机，绝不进 Git
+*.keystore
+*.jks
+android/keystore.properties

@@ -1,5 +1,15 @@
 apply plugin: 'com.android.application'
 
+// 正式签名只从环境变量来：CI 用 GitHub Actions Secrets 解出 keystore 到
+// android/app/release.keystore，本机调试时留空即可。
+// keystore 与密码永远不进 Git。
+def releaseStoreFile = System.getenv('ANDROID_KEYSTORE_PATH') ?: 'release.keystore'
+def releaseStorePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD')
+def releaseKeyAlias = System.getenv('ANDROID_KEY_ALIAS')
+def releaseKeyPassword = System.getenv('ANDROID_KEY_PASSWORD')
+def hasReleaseSigning = releaseStorePassword && releaseKeyAlias && releaseKeyPassword &&
+        file(releaseStoreFile).exists()
+
 android {
     namespace = "com.yydsxwh.kemiao.days"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,18 +17,42 @@ android {
         applicationId "com.yydsxwh.kemiao.days"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 7
-        versionName "1.6"
+        versionCode 8
+        versionName "2.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            // R8 会把 Capacitor 的插件类名裁掉，登录回调、文件选择和本地通知
+            // 都靠反射找类，所以这里保持关闭；要开需要先补完整的 keep 规则。
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
         }
+    }
+}
+
+// 没有正式签名时明确说出来，免得 CI 悄悄产出一个装不上的未签名包
+gradle.taskGraph.whenReady {
+    if (!hasReleaseSigning) {
+        logger.lifecycle('[kemiao-days] 未配置正式签名，release APK 将是未签名产物；' +
+                '请在 CI 配置 ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD / ' +
+                'ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD')
     }
 }
 

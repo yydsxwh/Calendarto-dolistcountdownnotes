@@ -1657,7 +1657,12 @@ select.input {
   font-size: 12px;
 }
 
-@media (min-width: 860px) {
+/*
+ * 只有「够宽而且够高」才切桌面顶栏导航。
+ * 手机横屏是 915×412 这种又宽又矮的尺寸，按纯宽度判断会切到桌面标签栏，
+ * 五个标签在这个宽度下会折成两行——那正是要避免的两排导航。
+ */
+@media (min-width: 860px) and (min-height: 540px) {
   .desktop-nav,
   .tabs.desktop-nav {
     display: flex;

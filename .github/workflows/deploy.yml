@@ -189,18 +189,46 @@ jobs:
         run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
       - name: Configure Android SDK
         run: printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > android/local.properties
-      - name: Build Android APK
+      - name: Decode release keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -e
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "BLOCKED: 缺少 ANDROID_KEYSTORE_BASE64。正式签名 Secret 未配置时" >&2
+            echo "不会产出 release APK，也不会覆盖线上文件。需要配置的 Secret：" >&2
+            echo "  ANDROID_KEYSTORE_BASE64 / ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_ALIAS / ANDROID_KEY_PASSWORD" >&2
+            exit 1
+          fi
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
+          test -s android/app/release.keystore
+      - name: Build signed release APK
         working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace
-      - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk kemiao-days.apk
+          ./gradlew assembleRelease --no-daemon --stacktrace
+      - name: Verify signature and hash
+        run: |
+          set -e
+          cp android/app/build/outputs/apk/release/app-release.apk kemiao-days.apk
+          APKSIGNER=$(ls "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | tail -1)
+          "$APKSIGNER" verify --verbose --print-certs kemiao-days.apk
+          sha256sum kemiao-days.apk | tee kemiao-days.apk.sha256
+          ls -l kemiao-days.apk
+      - name: Drop keystore from the runner
+        if: always()
+        run: rm -f android/app/release.keystore
       - name: Upload Android artifact
         uses: actions/upload-artifact@v4
         with:
           name: days-android
-          path: kemiao-days.apk
+          path: |
+            kemiao-days.apk
+            kemiao-days.apk.sha256
 
   deploy-android:
     needs: android

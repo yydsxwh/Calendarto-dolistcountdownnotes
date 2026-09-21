@@ -16,7 +16,6 @@ export type DaysConfig = {
   platformBaseUrl: string
   platformServiceToken: string
   platformClientId: string
-  wwwOcrUrl: string
   nativeHandoffUri: string
   adminSubs: string[]
   configEncryptionKey: string
@@ -61,7 +60,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DaysConfig {
     platformBaseUrl: (env.PLATFORM_API_URL || env.PLATFORM_BASE_URL || '').replace(/\/+$/, ''),
     platformServiceToken: env.PLATFORM_SERVICE_TOKEN || '',
     platformClientId: env.PLATFORM_CLIENT_ID || 'rishi',
-    wwwOcrUrl: env.DAYS_OCR_FALLBACK_URL || 'https://www.yydsxwh.com/api/days/timetable-ocr',
+    // 不再配「回退 OCR 地址」：主站上那个路径本来就是 BFF 自己，
+    // 回退等于自己请求自己，只会 500。没接通 platform 就明确报配置错误。
     nativeHandoffUri: env.RISHI_NATIVE_HANDOFF_URI || 'kemiao-days://auth',
     adminSubs: splitList(env.RISHI_ADMIN_SUBS, ''),
     configEncryptionKey: env.RISHI_CONFIG_ENCRYPTION_KEY || '',

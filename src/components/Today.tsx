@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { compareByStartTime, eventMatchesDate, formatEventTime, formatTodoTimeRange } from '../lib/calendar-events'
 import { daysUntil, formatLong, nextOccurrence, startOfToday, toISODate } from '../lib/dates'
 import { jsWeekday } from '../lib/periods'
@@ -16,14 +16,23 @@ import { EXAM_KIND_LABEL } from '../types'
 import type { AppStore } from '../hooks/useAppStore'
 import type { View } from '../types'
 import RecurringReminderForm from './RecurringReminderForm'
+import Todos from './Todos'
 
 export default function Today({
   store,
   onOpen,
+  focusTodos = false,
 }: {
   store: AppStore
   onOpen: (view: View) => void
+  /** 从旧的 `#todos` 进来时定位并高亮待办区域 */
+  focusTodos?: boolean
 }) {
+  const todoAnchor = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!focusTodos) return
+    todoAnchor.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [focusTodos])
   const today = startOfToday()
   const iso = toISODate(today)
   const hour = new Date().getHours()
@@ -270,7 +279,10 @@ export default function Today({
         <article className="card">
           <div className="card-head">
             <h3>今天要做</h3>
-            <button className="link" onClick={() => onOpen('todos')}>
+            <button
+              className="link"
+              onClick={() => todoAnchor.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            >
               全部待办
             </button>
           </div>
@@ -369,6 +381,14 @@ export default function Today({
             ))}
           </div>
         </article>
+      </div>
+
+      <div
+        id="today-todos"
+        ref={todoAnchor}
+        className={`todo-anchor ${focusTodos ? 'is-focused' : ''}`}
+      >
+        <Todos store={store} embedded />
       </div>
     </section>
   )

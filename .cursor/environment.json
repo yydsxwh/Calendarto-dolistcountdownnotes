@@ -1,0 +1,21 @@
+{
+  "name": "颗秒日事 (rishi)",
+  "install": "npm install",
+  "repositoryDependencies": ["github.com/yydsxwh/shared"],
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "npm run dev",
+      "description": "Vite dev server on http://0.0.0.0:5173 — 日历/待办/倒数日/便签/超级课程表 offline features (no secrets required)"
+    },
+    {
+      "name": "bff",
+      "command": "DAYS_SYNC_DATA_DIR=./data/kemiao-days npm run dev:bff",
+      "description": "日事 BFF on 127.0.0.1:3120 — login / sync / OCR proxy. Uses dev defaults and a repo-local data dir; live 登录/云同步 still need account-center secrets."
+    }
+  ],
+  "ports": [
+    { "name": "web", "port": 5173 },
+    { "name": "bff", "port": 3120 }
+  ]
+}

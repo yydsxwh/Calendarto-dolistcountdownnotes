@@ -16,7 +16,7 @@
     "test:timetable": "npx --yes tsx src/lib/timetable-import.selftest.ts && npx --yes tsx src/lib/week-grid.selftest.ts",
     "test:server": "node --import tsx --test server/src/*.test.ts",
     "test:sync": "npm run test:server",
-    "build:server": "esbuild server/src/listen.ts --bundle --platform=node --format=esm --outfile=server/dist/index.mjs --legal-comments=none",
+    "build:server": "esbuild server/src/listen.ts --bundle --platform=node --format=cjs --outfile=server/dist/index.cjs --legal-comments=none && node scripts/write-bff-loader.mjs",
     "dev:bff": "tsx server/src/listen.ts",
     "deploy:days": "bash scripts/deploy-days.sh",
     "build:android": "tsc -b && vite build --base=./ && npx cap sync android",

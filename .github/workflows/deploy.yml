@@ -76,7 +76,7 @@ jobs:
           printf '%s\n' "$SERVER_SSH_KEY" > deploy_key
           chmod 600 deploy_key
           scp -i deploy_key -P "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no \
-            server/dist/index.mjs server/days-sync/nginx-days-sync.conf \
+            server/dist/index.mjs server/dist/index.cjs server/days-sync/nginx-days-sync.conf \
             "$SERVER_USER@$SERVER_HOST:/tmp/"
           ssh -i deploy_key -p "${SERVER_PORT:-22}" -o IdentitiesOnly=yes -o StrictHostKeyChecking=no \
             "$SERVER_USER@$SERVER_HOST" 'set -e
@@ -90,7 +90,9 @@ jobs:
               if [ -z "$BFF_DIR" ] || [ "$BFF_DIR" = "." ]; then BFF_DIR=/opt/kemiao-days-sync; fi
               sudo mkdir -p "$BFF_DIR" /etc/nginx/snippets
               if [ -f "$BFF_DIR/index.mjs" ]; then sudo cp -a "$BFF_DIR/index.mjs" "$BFF_DIR/index.mjs.bak"; fi
+              if [ -f "$BFF_DIR/index.cjs" ]; then sudo cp -a "$BFF_DIR/index.cjs" "$BFF_DIR/index.cjs.bak"; fi
               sudo mv /tmp/index.mjs "$BFF_DIR/index.mjs"
+              sudo mv /tmp/index.cjs "$BFF_DIR/index.cjs"
               sudo mv /tmp/nginx-days-sync.conf /etc/nginx/snippets/kemiao-days-sync.conf
               if ! grep -q "kemiao-days-sync.conf" /etc/nginx/sites-enabled/* /etc/nginx/conf.d/* 2>/dev/null; then
                 echo "WARN: include snippets/kemiao-days-sync.conf 可能还没写进站点配置"
@@ -102,8 +104,16 @@ jobs:
               sudo systemctl reload nginx
               if systemctl list-unit-files | grep -q kemiao-days-sync; then
                 sudo systemctl restart kemiao-days-sync
+                sleep 1
+                if ! curl -fsS -m 5 http://127.0.0.1:3120/api/days/health >/dev/null; then
+                  echo "BFF health failed; restoring previous build" >&2
+                  if [ -f "$BFF_DIR/index.mjs.bak" ]; then sudo cp -a "$BFF_DIR/index.mjs.bak" "$BFF_DIR/index.mjs"; fi
+                  if [ -f "$BFF_DIR/index.cjs.bak" ]; then sudo cp -a "$BFF_DIR/index.cjs.bak" "$BFF_DIR/index.cjs"; else sudo rm -f "$BFF_DIR/index.cjs"; fi
+                  sudo systemctl restart kemiao-days-sync
+                  exit 1
+                fi
               fi
-              curl -sS -m 5 http://127.0.0.1:3120/api/days/health || true
+              curl -fsS -m 5 http://127.0.0.1:3120/api/days/health
             '
           rm -f deploy_key
 

@@ -58,8 +58,43 @@ export type TimetableOcrPayload = {
   [key: string]: unknown
 }
 
+/** 与 BFF `MAX_OCR_FILE_BYTES` 和 nginx `client_max_body_size` 保持同一个数 */
+export const MAX_OCR_FILE_BYTES = 20 * 1024 * 1024
+
+export type OcrKind = 'courses' | 'exams' | 'self' | 'auto'
+
 function ocrEndpoint(): string {
   return '/api/days/timetable-ocr'
+}
+
+export function assertUploadSize(file: { size: number; name: string }): void {
+  if (file.size <= MAX_OCR_FILE_BYTES) return
+  throw new Error(
+    `「${file.name}」有 ${(file.size / 1024 / 1024).toFixed(1)}MB，超过 ${MAX_OCR_FILE_BYTES / 1024 / 1024}MB 上限。请裁剪图片，或只导出课表那一页。`,
+  )
+}
+
+/** 服务端已经分好类了，这里优先用它的话术，别再统一说「识别失败」。 */
+export function explainOcrFailure(status: number, payload: TimetableOcrPayload): string {
+  const message = typeof payload.message === 'string' ? payload.message.trim() : ''
+  if (message) return message
+  const code = typeof payload.error === 'string' ? payload.error : ''
+  switch (code) {
+    case 'login_required':
+      return '课表识别需要先登录账号中心。登录后会回到这一页继续导入。'
+    case 'ai_unconfigured':
+      return '站点还没有配置 AI 识别服务，请联系站长。'
+    case 'no_vision_model':
+      return '当前 AI 模型不支持图片识别，请联系站长更换带视觉能力的模型。'
+    case 'file_too_large':
+      return `文件超过 ${MAX_OCR_FILE_BYTES / 1024 / 1024}MB，请裁剪后再试。`
+    case 'unsupported_format':
+      return '暂不支持这种文件。可用 JPG / PNG / WebP / PDF / DOCX / Excel / CSV。'
+    case 'no_result':
+      return '没有识别到课程或考试。请换更清晰的原件，或改用表格导入。'
+    default:
+      return code || explainOcrHttpError(status, `识别失败（${status}）`)
+  }
 }
 
 function parseExamKind(raw: string): ExamKind {
@@ -235,11 +270,16 @@ export async function recognizeTimetableFile(
   file: File,
   defaults: { classRemindMinutes: number; examRemindMinutes: number },
   userHint = '',
+  kind: OcrKind = 'auto',
 ): Promise<TimetableImportResult> {
+  assertUploadSize(file)
   const upload =
     classifyTimetableFile(file.name, file.type) === 'image' ? await prepareTimetableImage(file) : file
   const form = new FormData()
   form.append('file', upload, upload.name)
+  // 客户端已经知道用户点的是「导入课表」还是「导入考试表」，
+  // 把它一路传到 BFF 和模型，别在服务端再猜一次。
+  form.append('kind', kind)
   if (userHint.trim()) form.append('userHint', userHint.trim())
 
   const res = await daysFetch(ocrEndpoint(), { method: 'POST', body: form })
@@ -252,7 +292,7 @@ export async function recognizeTimetableFile(
     )
   }
   if (!res.ok || payload.error) {
-    throw new Error(payload.error || explainOcrHttpError(res.status, `识别失败（${res.status}）`))
+    throw new Error(explainOcrFailure(res.status, payload))
   }
   const result = hydrateTimetableOcr(payload, defaults)
   if (result.courses.length === 0 && result.exams.length === 0) {
@@ -293,7 +333,9 @@ export async function importViaAi(
   file: File,
   defaults: { classRemindMinutes: number; examRemindMinutes: number },
   userHint = '',
+  focus: OcrKind = 'auto',
 ): Promise<TimetableImportResult> {
+  assertUploadSize(file)
   const kind = classifyTimetableFile(file.name, file.type)
   if (kind === 'pdf') {
     const pages = await renderPdfPages(file)
@@ -305,14 +347,24 @@ export async function importViaAi(
       sheets: [],
       kind: 'courses',
     }
+    const failures: string[] = []
     for (const page of pages) {
-      const part = await recognizeTimetableFile(page, defaults, userHint)
-      merged.courses.push(...part.courses)
-      merged.exams.push(...part.exams)
-      merged.selfSchedules?.push(...(part.selfSchedules ?? []))
-      merged.warnings.push(...part.warnings)
-      merged.sheets.push(...part.sheets)
+      try {
+        const part = await recognizeTimetableFile(page, defaults, userHint, focus)
+        merged.courses.push(...part.courses)
+        merged.exams.push(...part.exams)
+        merged.selfSchedules?.push(...(part.selfSchedules ?? []))
+        merged.warnings.push(...part.warnings)
+        merged.sheets.push(...part.sheets)
+      } catch (error) {
+        // 多页 PDF 常常只有一页是课表，其余页识别不出来不该让整次导入失败
+        failures.push(error instanceof Error ? error.message : '识别失败')
+      }
     }
+    if (!merged.courses.length && !merged.exams.length && !merged.selfSchedules?.length) {
+      throw new Error(failures[0] || '这份 PDF 里没有识别到课表内容。')
+    }
+    dedupeMerged(merged)
     merged.kind =
       merged.courses.length && merged.exams.length
         ? 'mixed'
@@ -321,5 +373,36 @@ export async function importViaAi(
           : 'courses'
     return merged
   }
-  return recognizeTimetableFile(file, defaults, userHint)
+  return recognizeTimetableFile(file, defaults, userHint, focus)
+}
+
+/**
+ * 多页 PDF 常把同一张课表跨页重复渲染，同名同星期同时间只保留一条。
+ * 重试导入时同样靠这一步避免写进两份一模一样的课。
+ */
+export function dedupeMerged(result: TimetableImportResult): TimetableImportResult {
+  const seenCourse = new Set<string>()
+  result.courses = result.courses.filter((course) => {
+    const key = `${course.name}|${course.weekday}|${course.startTime}|${course.endTime}|${course.location ?? ''}`
+    if (seenCourse.has(key)) return false
+    seenCourse.add(key)
+    return true
+  })
+  const seenExam = new Set<string>()
+  result.exams = result.exams.filter((exam) => {
+    const key = `${exam.name}|${exam.date}|${exam.startTime}`
+    if (seenExam.has(key)) return false
+    seenExam.add(key)
+    return true
+  })
+  if (result.selfSchedules) {
+    const seenSelf = new Set<string>()
+    result.selfSchedules = result.selfSchedules.filter((item) => {
+      const key = `${item.title}|${item.weekday}|${item.startTime}|${item.endTime}`
+      if (seenSelf.has(key)) return false
+      seenSelf.add(key)
+      return true
+    })
+  }
+  return result
 }

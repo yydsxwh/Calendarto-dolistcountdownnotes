@@ -17,7 +17,14 @@ const REMINDERS = [
 
 type Filter = 'all' | 'today' | 'upcoming' | 'done'
 
-export default function Todos({ store }: { store: AppStore }) {
+export default function Todos({
+  store,
+  embedded = false,
+}: {
+  store: AppStore
+  /** 嵌在「我的一天」里时不再重复一层 view 外壳 */
+  embedded?: boolean
+}) {
   const [title, setTitle] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [dueTime, setDueTime] = useState('')
@@ -53,8 +60,9 @@ export default function Todos({ store }: { store: AppStore }) {
     [store.data.todos, filter, today],
   )
 
+  const Wrapper = embedded ? 'div' : 'section'
   return (
-    <section className="view">
+    <Wrapper className={embedded ? 'todo-panel' : 'view'}>
       <header className="view-head">
         <h2>待办清单</h2>
         <p className="muted">
@@ -163,6 +171,6 @@ export default function Todos({ store }: { store: AppStore }) {
           ))}
         </ul>
       </div>
-    </section>
+    </Wrapper>
   )
 }

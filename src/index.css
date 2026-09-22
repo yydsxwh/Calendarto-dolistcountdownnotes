@@ -17,6 +17,21 @@
   --shadow: 0 18px 40px rgba(225, 29, 72, 0.1);
   --radius: 24px;
   color-scheme: light;
+
+  /*
+   * 全站唯一的层级表。四层，从低到高：
+   * 普通内容 → 表格内吸顶行 → 顶栏/底栏 → 抽屉与弹窗。
+   * 课表星期标题必须留在 --z-sticky-table，并且它的滚动容器
+   * (.tt-wrap) 自己开一个 stacking context，这样不管里面写多大的
+   * z-index 都翻不过底部导航。不要靠随手加一个超大 z-index 解决遮挡。
+   */
+  --z-content: 1;
+  --z-sticky-table: 4;
+  --z-appbar: 20;
+  --z-bottom-nav: 30;
+  --z-overlay: 100;
+  /* 底栏视觉高度（不含安全区），页面底部留白与它保持一致 */
+  --bottom-nav-height: 58px;
 }
 
 * {
@@ -55,10 +70,23 @@ textarea {
   flex-direction: column;
 }
 
+.android-note {
+  margin: 12px 16px 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #fff;
+  color: #3b2340;
+  font-size: 14px;
+}
+
+.android-note code {
+  word-break: break-all;
+}
+
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: var(--z-appbar);
   display: flex;
   align-items: center;
   gap: 16px;
@@ -152,7 +180,8 @@ textarea {
   flex: 1;
   width: min(1120px, calc(100% - 28px));
   margin: 0 auto;
-  padding: 22px 0 88px;
+  /* 底栏是 fixed 的，最后一行内容必须自己让出底栏 + 手势区的高度 */
+  padding: 22px 0 calc(var(--bottom-nav-height) + 24px + env(safe-area-inset-bottom));
 }
 
 .view-head {
@@ -758,34 +787,71 @@ select.input {
   left: 0;
   right: 0;
   bottom: 0;
+  z-index: var(--z-bottom-nav);
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  background: rgba(255, 245, 247, 0.94);
+  /* 五个一级入口，等宽单行，永不换行也不横向滚动 */
+  grid-template-columns: repeat(5, 1fr);
+  background: rgba(255, 245, 247, 0.96);
+  backdrop-filter: blur(16px);
   border-top: 1px solid var(--line);
-  padding: 6px 4px env(safe-area-inset-bottom);
+  padding: 4px 2px env(safe-area-inset-bottom);
   box-shadow: 0 -10px 30px rgba(37, 99, 235, 0.06);
 }
 
 .bottom-nav button {
   border: 0;
   background: transparent;
-  padding: 8px 2px;
+  padding: 6px 2px;
   color: var(--muted);
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 2px;
+  /* 触控面积不小于 44×44 CSS 像素 */
+  min-height: 48px;
+  min-width: 44px;
   font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+
+.bottom-nav button:active {
+  transform: scale(0.94);
 }
 
 .bottom-nav .nav-icon {
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1;
 }
 
 .bottom-nav button.active {
   color: var(--hot);
   font-weight: 700;
+}
+
+/* 字体放大到 130% 时缩小字号而不是换行，标签仍然一行显示完 */
+@media (max-width: 340px) {
+  .bottom-nav button {
+    font-size: 10px;
+  }
+}
+
+.timetable-shell .subtabs {
+  margin-bottom: 4px;
+}
+
+.todo-anchor {
+  margin-top: 18px;
+  scroll-margin-top: 84px;
+  border-radius: var(--radius);
+  transition: box-shadow 0.4s ease;
+}
+
+.todo-anchor.is-focused {
+  box-shadow: 0 0 0 2px var(--brand-soft);
 }
 
 .remind-banner {
@@ -867,6 +933,13 @@ select.input {
 .tt-wrap {
   overflow-x: auto;
   padding: 12px;
+  /*
+   * 课表自己开一个层叠上下文：里面的 sticky 星期标题再怎么叠，
+   * 也只能在这个容器内部排序，不会画到 fixed 的底部导航上面。
+   */
+  position: relative;
+  z-index: var(--z-content);
+  isolation: isolate;
 }
 
 .week-toolbar-title {
@@ -901,7 +974,8 @@ select.input {
 .week-tt-head {
   position: sticky;
   top: 0;
-  z-index: 4;
+  /* 只在 .tt-wrap 这个层叠上下文里吸顶，盖不到顶栏也盖不到底栏 */
+  z-index: var(--z-sticky-table);
   background: #fff7fb;
 }
 
@@ -1088,7 +1162,8 @@ select.input {
 .tt-drawer-root {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  /* 真正的模态层，允许高于底部导航 */
+  z-index: var(--z-overlay);
 }
 
 .tt-drawer-mask {
@@ -1405,7 +1480,7 @@ select.input {
   border-radius: 18px;
   box-shadow: var(--shadow);
   padding: 14px;
-  z-index: 30;
+  z-index: var(--z-overlay);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1595,7 +1670,12 @@ select.input {
   font-size: 12px;
 }
 
-@media (min-width: 860px) {
+/*
+ * 只有「够宽而且够高」才切桌面顶栏导航。
+ * 手机横屏是 915×412 这种又宽又矮的尺寸，按纯宽度判断会切到桌面标签栏，
+ * 五个标签在这个宽度下会折成两行——那正是要避免的两排导航。
+ */
+@media (min-width: 860px) and (min-height: 540px) {
   .desktop-nav,
   .tabs.desktop-nav {
     display: flex;

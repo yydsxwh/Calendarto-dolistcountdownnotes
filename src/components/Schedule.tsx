@@ -55,18 +55,29 @@ function TimeInput({
   )
 }
 
-type Tab = 'week' | 'exams' | 'remind'
+export type ScheduleTab = 'week' | 'exams' | 'remind'
+type Tab = ScheduleTab
 
 export default function Schedule({
   store,
   requestPermission,
   previewReminder,
+  tab: controlledTab,
+  onTabChange,
 }: {
   store: AppStore
   requestPermission: () => Promise<NotificationPermission | 'denied' | 'granted'>
   previewReminder: (item: DueReminder) => void
+  /** 「时间表」父页接管二级切换时传入；独立使用时留空用自己的标签栏 */
+  tab?: Tab
+  onTabChange?: (next: Tab) => void
 }) {
-  const [tab, setTab] = useState<Tab>('week')
+  const [innerTab, setInnerTab] = useState<Tab>('week')
+  const tab = controlledTab ?? innerTab
+  const setTab = (next: Tab) => {
+    setInnerTab(next)
+    onTabChange?.(next)
+  }
   const [name, setName] = useState('')
   const [weekday, setWeekday] = useState(1)
   const [startTime, setStartTime] = useState('08:00')
@@ -305,19 +316,21 @@ export default function Schedule({
         </p>
       </header>
 
-      <div className="tabs">
-        {(
-          [
-            ['week', '周课表'],
-            ['exams', '考试时间表'],
-            ['remind', '提醒'],
-          ] as const
-        ).map(([id, label]) => (
-          <button key={id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>
-            {label}
-          </button>
-        ))}
-      </div>
+      {onTabChange ? null : (
+        <div className="tabs">
+          {(
+            [
+              ['week', '周课表'],
+              ['exams', '考试时间表'],
+              ['remind', '提醒'],
+            ] as const
+          ).map(([id, label]) => (
+            <button key={id} className={`tab ${tab === id ? 'active' : ''}`} onClick={() => setTab(id)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {status && <p className="import-status">{status}</p>}
 

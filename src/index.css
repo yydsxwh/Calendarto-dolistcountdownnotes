@@ -1200,6 +1200,11 @@ select.input {
   box-shadow: 0 0 0 2px var(--brand-soft);
 }
 
+.tt-term-list li .btn {
+  flex: none;
+  padding: 8px 12px;
+}
+
 .tt-period-idx {
   min-width: 56px;
   font-size: 13px;

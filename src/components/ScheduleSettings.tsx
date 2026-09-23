@@ -9,7 +9,7 @@ import {
   defaultWeekCount,
   termLabel,
 } from '../lib/terms'
-import type { TermKind } from '../types'
+import type { Term, TermKind } from '../types'
 
 type Panel = 'home' | 'term' | 'periods' | 'start' | 'rows' | 'weekstart'
 
@@ -25,6 +25,14 @@ export default function ScheduleSettings({
   const [panel, setPanel] = useState<Panel>('home')
   const current = store.currentTerm
   const view = store.data.timetableView
+
+  const deleteTerm = (term: Term) => {
+    if (store.data.terms.length <= 1) return
+    const courseCount = store.data.courses.filter((course) => course.termId === term.id).length
+    const courseNote = courseCount ? `这学期的 ${courseCount} 节课会一起删除。` : '这学期还没有课。'
+    if (!window.confirm(`删除「${termLabel(term)}」？${courseNote}`)) return
+    store.removeTerm(term.id)
+  }
 
   if (!open || !current) return null
 
@@ -123,8 +131,8 @@ export default function ScheduleSettings({
                     {` · ${term.weekCount} 周`}
                   </button>
                   {store.data.terms.length > 1 ? (
-                    <button type="button" className="icon-btn" onClick={() => store.removeTerm(term.id)} aria-label="删除学期">
-                      ✕
+                    <button type="button" className="btn ghost" onClick={() => deleteTerm(term)}>
+                      删除
                     </button>
                   ) : null}
                 </li>
@@ -184,6 +192,13 @@ export default function ScheduleSettings({
             <button type="button" className="btn ghost" onClick={() => store.addTerm({ kind: 'intern' })}>
               新建实习项目课表
             </button>
+            {store.data.terms.length > 1 ? (
+              <button type="button" className="btn ghost" onClick={() => deleteTerm(current)}>
+                删除当前学期
+              </button>
+            ) : (
+              <p className="muted">至少保留一个学期。新建学期后，可以在上面的列表里点「删除」。</p>
+            )}
           </div>
         )}
 

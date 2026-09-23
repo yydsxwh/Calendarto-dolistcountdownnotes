@@ -84,5 +84,11 @@ json.dump({
 print()
 PY
 scp -i "$KEY" -o IdentitiesOnly=yes /tmp/kemiao-days-release.json "$HOST:$DEST/kemiao-days-release.json.uploading"
-ssh -i "$KEY" -o IdentitiesOnly=yes "$HOST" "mv -f '$DEST/kemiao-days-release.json.uploading' '$DEST/kemiao-days-release.json' && mv -f '$remote_tmp' '$remote_final' && sha256sum '$remote_final'"
+ssh -i "$KEY" -o IdentitiesOnly=yes "$HOST" "set -e
+  if [[ -f '$remote_final' ]]; then cp -a '$remote_final' '$remote_final.previous'; fi
+  mv -f '$DEST/kemiao-days-release.json.uploading' '$DEST/kemiao-days-release.json'
+  mv -f '$remote_tmp' '$remote_final'
+  chmod 644 '$remote_final' '$DEST/kemiao-days-release.json'
+  sha256sum '$remote_final'
+"
 echo "published_sha256=$local_sha"

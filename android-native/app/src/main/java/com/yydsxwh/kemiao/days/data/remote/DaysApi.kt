@@ -43,6 +43,15 @@ class DaysApi(
         .writeTimeout(45, TimeUnit.SECONDS)
         .build(),
 ) {
+    /**
+     * 课表图片走视觉模型，线上一次成功识别大约 30 秒，慢的会接近平台的 60 秒上限。
+     * 同步接口仍用上面的 45 秒；识别单独放宽，避免模型还在看图时手机先断开。
+     */
+    private val ocrClient: OkHttpClient = client.newBuilder()
+        .readTimeout(110, TimeUnit.SECONDS)
+        .writeTimeout(110, TimeUnit.SECONDS)
+        .callTimeout(110, TimeUnit.SECONDS)
+        .build()
     private val jsonMedia = "application/json; charset=utf-8".toMediaType()
 
     private fun request(path: String, method: String = "GET", body: String? = null, extraHeaders: Map<String, String> = emptyMap()): Pair<Int, String> {
@@ -163,7 +172,7 @@ class DaysApi(
             .build()
         val builder = Request.Builder().url("$origin/api/days/timetable-ocr").post(body)
         tokenProvider()?.takeIf { it.isNotBlank() }?.let { builder.header("Authorization", "Bearer $it") }
-        client.newCall(builder.build()).execute().use { response ->
+        ocrClient.newCall(builder.build()).execute().use { response ->
             val text = response.body?.string().orEmpty()
             if (response.code !in 200..299) throw SyncUnavailable(text.ifBlank { "OCR_${response.code}" })
             return text

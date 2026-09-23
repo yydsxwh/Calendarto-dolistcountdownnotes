@@ -7,10 +7,13 @@ import {
   MAX_OCR_FILE_BYTES,
   OcrError,
   buildParts,
+  extractJson,
   normalizeIsoDate,
   normalizeOcrPayload,
   normalizeClock,
+  translatePlatformError,
 } from './ai-ocr'
+import { PLATFORM_CALL_TIMEOUT_MS } from './platform'
 
 /** 手搓一个最小 DOCX（ZIP），避免测试依赖二进制样例文件 */
 function makeZip(files: { name: string; data: Buffer }[]): Buffer {
@@ -185,4 +188,26 @@ test('上传上限只有一个数，客户端与服务端共用', () => {
 
 test('空表格行不会污染文档文本', () => {
   assert.equal(documentText('<w:body><w:tbl><w:tr><w:tc></w:tc></w:tr></w:tbl></w:body>'), '')
+})
+
+test('模型把 JSON 包在说明和围栏里、或带尾逗号时仍能取出课表', () => {
+  const fenced = '识别结果如下：\n```json\n{"courses":[{"name":"高等数学","weekday":1,"startTime":"08:00","endTime":"09:40",}]}\n```\n请核对。'
+  const parsed = extractJson(fenced) as { courses: { name: string }[] }
+  assert.equal(parsed.courses[0]?.name, '高等数学')
+
+  const quoted = '说明 {"note":"先看节次"} 然后 {"courses":[{"name":"大学英语","weekday":2,"startTime":"10:00","endTime":"11:40"}]} 完'
+  assert.equal((extractJson(quoted) as { courses: { name: string }[] }).courses[0]?.name, '大学英语')
+  const rows = extractJson('[{"name":"线性代数","weekday":3,"startTime":"14:00","endTime":"15:40"}]') as {
+    courses: { name: string }[]
+  }
+  assert.equal(rows.courses[0]?.name, '线性代数')
+})
+
+test('平台在 15 秒中断时不能再报成返回格式不合法', () => {
+  const aborted = translatePlatformError(new Error('platform 请求失败：This operation was aborted'))
+  assert.equal(aborted.code, 'upstream_timeout')
+  const http = translatePlatformError(new Error('模型返回 400：invalid image'))
+  assert.equal(http.code, 'recognition_failed')
+  assert.ok(PLATFORM_CALL_TIMEOUT_MS >= 60_000)
+  assert.ok(PLATFORM_CALL_TIMEOUT_MS < 120_000)
 })

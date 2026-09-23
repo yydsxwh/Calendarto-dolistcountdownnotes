@@ -31,6 +31,7 @@ export type OcrErrorCode =
   | 'upstream_timeout'
   | 'no_result'
   | 'bad_model_output'
+  | 'recognition_failed'
 
 /** 客户端、BFF、nginx 统一用这个上限，不要再出现 8MB / 20MB 两套 */
 export const MAX_OCR_FILE_BYTES = 20 * 1024 * 1024
@@ -52,18 +53,97 @@ const KIND_HINT: Record<OcrKind, string> = {
   auto: '判断这是课表、考试表还是自律表，返回对应字段。',
 }
 
-function extractJson(text: string): unknown {
-  const trimmed = text.trim()
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/)
-  const raw = fenced?.[1] || trimmed
-  const start = raw.indexOf('{')
-  const end = raw.lastIndexOf('}')
-  if (start < 0 || end < start) throw new OcrError('bad_model_output', '模型没有返回可解析的表格数据，请换一张更清晰的原件。')
-  try {
-    return JSON.parse(raw.slice(start, end + 1))
-  } catch {
-    throw new OcrError('bad_model_output', '模型返回的数据格式不合法，请重试一次。')
+/**
+ * 模型经常在 JSON 前后加说明、用 markdown 围栏，或在最后一项后面留逗号。
+ * 先挑能解析、又像课表的那一段，解析失败才算返回格式不合法。
+ */
+export function extractJson(text: string): unknown {
+  const trimmed = text.trim().replace(/^\uFEFF/, '')
+  const fenced = [...trimmed.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)].map((match) => match[1] || '')
+  const sources = [...fenced, trimmed]
+  let sawBrace = false
+  let best: { value: unknown; score: number } | undefined
+  for (const source of sources) {
+    for (const candidate of jsonCandidates(source)) {
+      sawBrace = true
+      const value = parseLoose(candidate)
+      if (value === undefined) continue
+      const score = scorePayload(value, candidate.length)
+      if (!best || score > best.score) best = { value, score }
+    }
   }
+  if (best) return coercePayload(best.value)
+  if (!sawBrace) {
+    throw new OcrError('bad_model_output', '模型没有返回可解析的表格数据，请换一张更清晰的原件。')
+  }
+  throw new OcrError('bad_model_output', '模型返回的数据格式不合法，请重试一次。')
+}
+
+function jsonCandidates(source: string): string[] {
+  const found: string[] = []
+  for (let i = 0; i < source.length; i++) {
+    const opener = source[i]
+    if (opener !== '{' && opener !== '[') continue
+    const end = matchingBracket(source, i)
+    if (end > i) found.push(source.slice(i, end + 1))
+  }
+  return found
+}
+
+function matchingBracket(text: string, open: number): number {
+  const closer = text[open] === '{' ? '}' : ']'
+  let depth = 0
+  let inString = false
+  let escape = false
+  for (let i = open; i < text.length; i++) {
+    const ch = text[i]
+    if (inString) {
+      if (escape) escape = false
+      else if (ch === '\\') escape = true
+      else if (ch === '"') inString = false
+      continue
+    }
+    if (ch === '"') {
+      inString = true
+      continue
+    }
+    if (ch === text[open]) depth++
+    else if (ch === closer) {
+      depth--
+      if (depth === 0) return i
+    }
+  }
+  return -1
+}
+
+function parseLoose(raw: string): unknown | undefined {
+  const repaired = raw
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/,\s*([}\]])/g, '$1')
+  for (const candidate of [raw, repaired]) {
+    try {
+      return JSON.parse(candidate)
+    } catch {
+      // 下一种修法
+    }
+  }
+  return undefined
+}
+
+function coercePayload(value: unknown): unknown {
+  if (!Array.isArray(value)) return value
+  const rows = value.filter((item) => item && typeof item === 'object') as Record<string, unknown>[]
+  if (rows.some((item) => 'date' in item || 'examDate' in item)) return { exams: rows }
+  if (rows.some((item) => 'title' in item && !('name' in item))) return { selfSchedules: rows }
+  return { courses: rows }
+}
+
+function scorePayload(value: unknown, length: number): number {
+  if (!value || typeof value !== 'object') return length
+  const record = value as Record<string, unknown>
+  const useful = ['courses', 'exams', 'selfSchedules', 'self', 'slots', 'dayHeaders'].filter((key) => key in record).length
+  return useful * 1_000_000 + length
 }
 
 function asArray(value: unknown): Record<string, unknown>[] {
@@ -331,7 +411,7 @@ export async function recognizeWithPlatform(
 }
 
 /** Platform 的错误原样抛给用户没有意义，翻成用户能照做的话。 */
-function translatePlatformError(error: unknown): OcrError {
+export function translatePlatformError(error: unknown): OcrError {
   const raw = error instanceof Error ? error.message : String(error)
   if (/未配置任何 AI Provider|没有可用的模型路由|候选模型都不可用/.test(raw)) {
     return new OcrError('ai_unconfigured', '站点还没有配置 AI 识别服务。请站长在主站后台「系统设置 → AI 接口」里完成配置。', 503)
@@ -342,7 +422,9 @@ function translatePlatformError(error: unknown): OcrError {
   if (/UNAUTHORIZED|FORBIDDEN|401|403/.test(raw)) {
     return new OcrError('service_token_invalid', '日事与公共平台之间的服务凭证无效，请站长检查 PLATFORM_SERVICE_TOKEN。', 503)
   }
-  if (/超时|timeout|TIMEOUT/i.test(raw)) {
+  // Node fetch 超时的原文是 “This operation was aborted”，里面没有 timeout。
+  // 以前会掉进最后的兜底，手机上就显示「返回格式不合法」。
+  if (/超时|timeout|timed out|aborted|abort/i.test(raw)) {
     return new OcrError('upstream_timeout', '识别服务响应超时。稍等一下再试，或换一张更小的图片。', 504)
   }
   if (/fetch failed|ECONNREFUSED|ENOTFOUND|network/i.test(raw)) {
@@ -351,5 +433,5 @@ function translatePlatformError(error: unknown): OcrError {
   if (/RATE_LIMITED|过于频繁/.test(raw)) {
     return new OcrError('upstream_timeout', '识别请求过于频繁，请稍后再试。', 429)
   }
-  return new OcrError('bad_model_output', '识别没有成功完成，请重试一次。', 502)
+  return new OcrError('recognition_failed', '识别没有成功完成，请重试一次。', 502)
 }

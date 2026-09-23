@@ -16,5 +16,7 @@ class OcrErrorsTest {
         assertEquals("上游超时", userFacingOcrError("""{"error":"upstream_timeout"}"""))
         assertEquals("未识别到课程", userFacingOcrError("""{"error":"no_result"}"""))
         assertEquals("返回格式不合法", userFacingOcrError("""{"error":"bad_model_output"}"""))
+        assertEquals("识别没有成功完成，请重试一次", userFacingOcrError("""{"error":"recognition_failed"}"""))
+        assertEquals("上游超时", userFacingOcrError("This operation was aborted"))
     }
 }

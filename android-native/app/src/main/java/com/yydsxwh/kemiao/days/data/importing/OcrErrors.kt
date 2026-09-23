@@ -24,10 +24,11 @@ fun userFacingOcrError(raw: String): String {
         "upstream_timeout" -> "上游超时"
         "no_result" -> "未识别到课程"
         "bad_model_output" -> "返回格式不合法"
+        "recognition_failed" -> "识别没有成功完成，请重试一次"
         else -> when {
             raw.contains("登录", ignoreCase = false) -> "登录失效"
             raw.contains("TOO_LARGE") || raw.contains("413") -> "文件过大"
-            raw.contains("timeout", ignoreCase = true) -> "上游超时"
+            raw.contains("timeout", ignoreCase = true) || raw.contains("aborted", ignoreCase = true) -> "上游超时"
             else -> "识别没有成功完成，请重试一次"
         }
     }

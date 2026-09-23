@@ -43,13 +43,13 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -58,6 +58,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -113,6 +114,13 @@ import com.yydsxwh.kemiao.days.data.model.termLabel
 import com.yydsxwh.kemiao.days.data.model.todayIso
 import com.yydsxwh.kemiao.days.data.model.toIsoDate
 import com.yydsxwh.kemiao.days.data.model.uid
+import com.yydsxwh.kemiao.days.ui.theme.Brand
+import com.yydsxwh.kemiao.days.ui.theme.CampusFilterChip
+import com.yydsxwh.kemiao.days.ui.theme.Hot
+import com.yydsxwh.kemiao.days.ui.theme.Ink
+import com.yydsxwh.kemiao.days.ui.theme.Muted
+import com.yydsxwh.kemiao.days.ui.theme.Paper
+import com.yydsxwh.kemiao.days.ui.theme.PinkSoft
 import com.yydsxwh.kemiao.days.data.model.weekdayOf
 import com.yydsxwh.kemiao.days.data.sync.SyncState
 import java.time.LocalDate
@@ -173,8 +181,15 @@ fun DaysApp(viewModel: DaysViewModel, activity: Activity) {
     }
     // 主内容必须吃掉 Scaffold 的 padding。星期栏若画在这块区域外面，下滑就会压住底栏。
     Scaffold(
+        containerColor = Paper,
         topBar = {
             TopAppBar(
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Paper,
+                    titleContentColor = Ink,
+                    navigationIconContentColor = Ink,
+                    actionIconContentColor = Brand,
+                ),
                 title = { Text(title, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = {
                     if (primary !in tabRoutes) {
@@ -264,11 +279,23 @@ fun DaysApp(viewModel: DaysViewModel, activity: Activity) {
 
 @Composable
 internal fun DaysBottomBar(selected: String, onSelect: (String) -> Unit) {
-    NavigationBar(Modifier.testTag("bottom-nav").heightIn(min = 80.dp)) {
+    NavigationBar(
+        modifier = Modifier.testTag("bottom-nav").heightIn(min = 80.dp),
+        containerColor = Paper,
+        contentColor = Muted,
+        tonalElevation = 0.dp,
+    ) {
         TABS.forEach { tab ->
             NavigationBarItem(
                 selected = selected == tab.route,
                 onClick = { onSelect(tab.route) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = Hot,
+                    selectedTextColor = Hot,
+                    indicatorColor = PinkSoft,
+                    unselectedIconColor = Muted,
+                    unselectedTextColor = Muted,
+                ),
                 icon = { Icon(tab.icon, contentDescription = tab.label) },
                 label = {
                     Text(
@@ -398,7 +425,7 @@ private fun TodosScreen(state: DaysUiState, vm: DaysViewModel) {
         Column(Modifier.fillMaxSize().padding(16.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("all" to "全部", "open" to "未完成", "done" to "已完成").forEach { (id, label) ->
-                    FilterChip(selected = filter == id, onClick = { filter = id }, label = { Text(label) })
+                    CampusFilterChip(selected = filter == id, onClick = { filter = id }, label = { Text(label) })
                 }
             }
             if (items.isEmpty()) EmptyState("还没有待办", "点右下角加上今天要做的事")
@@ -417,7 +444,12 @@ private fun TodosScreen(state: DaysUiState, vm: DaysViewModel) {
                 }
             }
         }
-        FloatingActionButton(onClick = { show = true }, modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)) { Icon(Icons.Filled.Add, "添加待办") }
+        FloatingActionButton(
+            onClick = { show = true },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp),
+            containerColor = Brand,
+            contentColor = Color.White,
+        ) { Icon(Icons.Filled.Add, "添加待办") }
     }
     if (show) TodoEditor(null, { show = false }) { title, date, time, pri, remind -> vm.addTodo(title, date, time, pri, remind); show = false }
     editing?.let { current ->
@@ -467,9 +499,9 @@ private fun ScheduleScreen(state: DaysUiState, vm: DaysViewModel, activity: Acti
         Text(term?.let { termLabel(it) } ?: "当前学期", fontWeight = FontWeight.Bold)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             state.data.terms.forEach { t ->
-                FilterChip(selected = t.id == state.data.currentTermId, onClick = { vm.setCurrentTerm(t.id) }, label = { Text(termLabel(t), maxLines = 1) })
+                CampusFilterChip(selected = t.id == state.data.currentTermId, onClick = { vm.setCurrentTerm(t.id) }, label = { Text(termLabel(t), maxLines = 1) })
             }
-            FilterChip(selected = false, onClick = { vm.addTerm() }, label = { Text("新学期") })
+            CampusFilterChip(selected = false, onClick = { vm.addTerm() }, label = { Text("新学期") })
         }
         if (termCourses.isEmpty()) EmptyState("还没有课程", "先手动加一节，或导入课表图片、PDF、Word、表格")
         else TimetableBoard(termCourses, Modifier.weight(1f).fillMaxWidth()) { editing = it }
@@ -527,7 +559,7 @@ private fun TimetableScreen(
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("timetable-sections")) {
             TIMETABLE_SECTIONS.forEach { (id, label) ->
-                FilterChip(
+                CampusFilterChip(
                     selected = section == id,
                     onClick = { onSection(id) },
                     label = { Text(label, maxLines = 1, softWrap = false) },

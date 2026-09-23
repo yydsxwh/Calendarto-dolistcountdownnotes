@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { addClockMinutes, formatDuration, WEEKDAY_LABELS } from '../lib/periods'
 import { loadData, saveData } from '../lib/store'
 import type { AppData, Course, TimetableViewSettings, Exam } from '../types'
@@ -60,7 +60,19 @@ export default function WeekTimetable({
   const hiddenDayCols = useMemo(() => weekdayOrder(view.weekStartsOn).filter((weekday) => view.hiddenWeekdays.includes(weekday)), [view.hiddenWeekdays, view.weekStartsOn])
   const bodyHeight = axisHeight(axis) + 18
   const nowTop = nowLineTop(now, view.hiddenHours, HOUR_PX, axis)
-  const columns = `54px repeat(${Math.max(1, days.length)}, minmax(0, 1fr))`
+  const columns = `68px repeat(${Math.max(1, days.length)}, minmax(0, 1fr))`
+
+  useEffect(() => {
+    if (!detail) return
+    const latest = courses.find((course) => course.id === detail.id)
+    if (!latest) return
+    if ((latest.note ?? '') === draftNote && latest.color === draftColor) return
+    if ((latest.note ?? '') !== (detail.note ?? '') || latest.color !== detail.color) {
+      setDetail(latest)
+      setDraftNote(latest.note ?? '')
+      setDraftColor(latest.color || COURSE_PALETTE[0])
+    }
+  }, [courses, detail, draftColor, draftNote])
 
   const openCourse = (course: Course) => {
     const latest = loadData().courses.find((item) => item.id === course.id) ?? course

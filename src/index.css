@@ -895,7 +895,7 @@ select.input {
 .week-tt-head,
 .week-tt-body {
   display: grid;
-  grid-template-columns: 54px repeat(7, minmax(0, 1fr));
+  grid-template-columns: 68px repeat(7, minmax(0, 1fr));
 }
 
 .week-tt-head {
@@ -918,6 +918,10 @@ select.input {
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  background: #fff7fb;
 }
 
 .week-tt-h {
@@ -960,6 +964,10 @@ select.input {
 
 .week-tt-gutter-col {
   border-left: 0;
+  position: sticky;
+  left: 0;
+  z-index: 5;
+  background: #fff;
 }
 
 .week-tt-hour {
@@ -1083,6 +1091,8 @@ select.input {
   align-items: flex-start;
   justify-content: flex-end;
   gap: 2px;
+  z-index: 1;
+  background: #fff;
 }
 
 .tt-drawer-root {
@@ -1630,7 +1640,7 @@ select.input {
 
   .week-tt-head,
   .week-tt-body {
-    grid-template-columns: 36px repeat(7, minmax(0, 1fr));
+    grid-template-columns: 52px repeat(7, minmax(0, 1fr));
   }
 
   .week-tt-course,

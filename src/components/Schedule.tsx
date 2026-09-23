@@ -453,16 +453,32 @@ export default function Schedule({
           {selected && (
             <div className="card week-detail">
               <div>
-                <p className="kicker">
-                  {WEEKDAY_LABELS[selected.weekday - 1]} {selected.startTime}-{selected.endTime}
-                </p>
+                <p className="kicker">课程详情</p>
                 <h3>{selected.name}</h3>
                 <p className="muted">
-                  {[selected.location, selected.teacher, selected.weeks, formatDuration(selected.startTime, selected.endTime)]
+                  {[
+                    WEEKDAY_LABELS[selected.weekday - 1],
+                    `${selected.startTime}-${selected.endTime}`,
+                    selected.location,
+                    selected.teacher,
+                    selected.weeks,
+                    formatDuration(selected.startTime, selected.endTime),
+                  ]
                     .filter(Boolean)
                     .join(' · ')}
                 </p>
               </div>
+              <label>
+                我的课程备注
+                <textarea
+                  className="textarea"
+                  rows={4}
+                  value={selected.note ?? ''}
+                  placeholder="例如：老师重点讲第三章；下周带计算器；作业交到学习通……"
+                  onChange={(e) => store.updateCourse(selected.id, { note: e.target.value })}
+                />
+              </label>
+              <p className="muted">备注保存在这门课上，并随账号同步。点课程色块也会打开右侧详情。</p>
               <div className="row wrap">
                 <button
                   className="btn ghost"

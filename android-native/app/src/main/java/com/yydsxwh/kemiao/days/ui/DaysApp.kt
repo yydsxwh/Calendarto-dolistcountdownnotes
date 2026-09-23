@@ -11,8 +11,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -26,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -106,13 +105,20 @@ import com.yydsxwh.kemiao.days.data.model.eventMatchesDate
 import com.yydsxwh.kemiao.days.data.model.formatLong
 import com.yydsxwh.kemiao.days.data.model.formatRecurrence
 import com.yydsxwh.kemiao.days.data.model.formatShort
+import com.yydsxwh.kemiao.days.data.model.guessTermKind
 import com.yydsxwh.kemiao.days.data.model.greeting
 import com.yydsxwh.kemiao.days.data.model.nextOccurrence
 import com.yydsxwh.kemiao.days.data.model.nowMillis
 import com.yydsxwh.kemiao.days.data.model.occursOn
+import com.yydsxwh.kemiao.days.data.model.Term
+import com.yydsxwh.kemiao.days.data.model.courseInTeachingWeek
+import com.yydsxwh.kemiao.days.data.model.shiftWeek
+import com.yydsxwh.kemiao.days.data.model.startOfWeek
+import com.yydsxwh.kemiao.days.data.model.teachingWeekNumber
 import com.yydsxwh.kemiao.days.data.model.termLabel
-import com.yydsxwh.kemiao.days.data.model.todayIso
 import com.yydsxwh.kemiao.days.data.model.toIsoDate
+import com.yydsxwh.kemiao.days.data.model.weekDays
+import com.yydsxwh.kemiao.days.data.model.todayIso
 import com.yydsxwh.kemiao.days.data.model.uid
 import com.yydsxwh.kemiao.days.ui.theme.Brand
 import com.yydsxwh.kemiao.days.ui.theme.CampusFilterChip
@@ -483,28 +489,70 @@ private fun TodoEditor(initial: Todo?, onDismiss: () -> Unit, onSave: (String, S
     )
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ScheduleScreen(state: DaysUiState, vm: DaysViewModel, activity: Activity) {
     var show by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Course?>(null) }
     var confirmClear by remember { mutableStateOf(false) }
+    var termsOpen by remember { mutableStateOf(false) }
+    var deleteTermId by remember { mutableStateOf<String?>(null) }
     val weekday = weekdayOf(todayIso())
     val term = state.data.terms.firstOrNull { it.id == state.data.currentTermId }
+    val weekStartsOn = state.data.timetableView.weekStartsOn
+    var weekStart by remember(weekStartsOn) { mutableStateOf(startOfWeek(LocalDate.now(), weekStartsOn)) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) vm.startImport(activity, uri, "courses")
     }
     val termCourses = state.data.courses.filter { it.termId == null || it.termId == state.data.currentTermId }
+    val weekNo = teachingWeekNumber(weekStart, term?.startDate, weekStartsOn)
+    val days = weekDays(weekStart, LocalDate.now(), weekStartsOn, state.data.timetableView.hiddenWeekdays)
+    val visibleCourses = if (state.data.timetableView.showOffWeekCourses || weekNo == null || weekNo < 1) {
+        termCourses
+    } else {
+        termCourses.filter { courseInTeachingWeek(it, weekNo) }
+    }
+    val weekExams = state.data.exams.filter { exam -> days.any { it.iso == exam.date } }
+    val weekTitle = if (weekNo != null && weekNo >= 1) {
+        "第 $weekNo${term?.let { " / ${it.weekCount}" }.orEmpty()} 周"
+    } else {
+        "周课表"
+    }
+    val thisWeek = startOfWeek(LocalDate.now(), weekStartsOn)
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(term?.let { termLabel(it) } ?: "当前学期", fontWeight = FontWeight.Bold)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            state.data.terms.forEach { t ->
-                CampusFilterChip(selected = t.id == state.data.currentTermId, onClick = { vm.setCurrentTerm(t.id) }, label = { Text(termLabel(t), maxLines = 1) })
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Button(onClick = { termsOpen = true }, modifier = Modifier.weight(1f)) {
+                Text(term?.let { termLabel(it) } ?: "学期", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
             }
-            CampusFilterChip(selected = false, onClick = { vm.addTerm() }, label = { Text("新学期") })
+            if (state.data.terms.size > 1 && term != null) {
+                TextButton(onClick = { deleteTermId = term.id }) { Text("删除学期") }
+            }
         }
-        if (termCourses.isEmpty()) EmptyState("还没有课程", "先手动加一节，或导入课表图片、PDF、Word、表格")
-        else TimetableBoard(termCourses, Modifier.weight(1f).fillMaxWidth()) { editing = it }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(
+                onClick = { weekStart = shiftWeek(weekStart, -1) },
+                enabled = weekNo == null || weekNo > 1,
+            ) { Text("上一周") }
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(weekTitle + if (weekStart == thisWeek) " · 本周" else "", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+                if (days.isNotEmpty()) {
+                    val first = days.first().date
+                    val last = days.last().date
+                    Text("${first.monthValue}/${first.dayOfMonth} – ${last.monthValue}/${last.dayOfMonth}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                }
+            }
+            TextButton(
+                onClick = { weekStart = shiftWeek(weekStart, 1) },
+                enabled = term?.startDate.isNullOrBlank() || weekNo == null || weekNo < (term?.weekCount ?: Int.MAX_VALUE),
+            ) { Text("下一周") }
+            TextButton(onClick = { weekStart = thisWeek }) { Text("本周") }
+        }
+        if (visibleCourses.isEmpty()) Text("这周还没有课程。可以加一节，或导入课表图片、PDF、Word、表格。", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        TimetableBoard(
+            visibleCourses,
+            Modifier.weight(1f).fillMaxWidth(),
+            exams = weekExams,
+            hiddenHours = state.data.timetableView.hiddenHours,
+        ) { editing = it }
         if (state.importing) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CircularProgressIndicator(Modifier.size(18.dp))
@@ -532,6 +580,86 @@ private fun ScheduleScreen(state: DaysUiState, vm: DaysViewModel, activity: Acti
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("取消") } },
         )
     }
+    if (termsOpen) {
+        TermManagerDialog(
+            terms = state.data.terms,
+            current = term,
+            onDismiss = { termsOpen = false },
+            onSwitch = { vm.setCurrentTerm(it) },
+            onAdd = { vm.addTerm(it) },
+            onDelete = { deleteTermId = it },
+            onUpdate = { vm.updateTerm(it) },
+        )
+    }
+    deleteTermId?.let { id ->
+        val target = state.data.terms.firstOrNull { it.id == id }
+        AlertDialog(
+            onDismissRequest = { deleteTermId = null },
+            title = { Text("删除学期？") },
+            text = { Text("${target?.let { termLabel(it) } ?: "这个学期"}会从列表里去掉。这个学期的课程仍留在原学期下，不会混进其他学期。至少要留下一个学期。") },
+            confirmButton = {
+                Button(onClick = { vm.removeTerm(id); deleteTermId = null }) { Text("删除") }
+            },
+            dismissButton = { TextButton(onClick = { deleteTermId = null }) { Text("取消") } },
+        )
+    }
+}
+
+@Composable
+private fun TermManagerDialog(
+    terms: List<Term>,
+    current: Term?,
+    onDismiss: () -> Unit,
+    onSwitch: (String) -> Unit,
+    onAdd: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    onUpdate: (Term) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("学年学期") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("点学期名称切换。右边可以删除。至少保留一个学期。", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                terms.forEach { item ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(onClick = { onSwitch(item.id) }, modifier = Modifier.weight(1f)) {
+                            Text(
+                                termLabel(item),
+                                color = if (item.id == current?.id) Brand else Ink,
+                                fontWeight = if (item.id == current?.id) FontWeight.Bold else FontWeight.Normal,
+                                maxLines = 2,
+                            )
+                        }
+                        if (terms.size > 1) {
+                            TextButton(onClick = { onDelete(item.id) }) { Text("删除") }
+                        }
+                    }
+                }
+                current?.let { term ->
+                    OutlinedTextField(
+                        term.startDate,
+                        { onUpdate(term.copy(startDate = it)) },
+                        label = { Text("开学日 YYYY-MM-DD") },
+                        singleLine = true,
+                    )
+                    OutlinedTextField(
+                        term.weekCount.toString(),
+                        { value -> value.toIntOrNull()?.takeIf { it in 1..40 }?.let { onUpdate(term.copy(weekCount = it)) } },
+                        label = { Text("周数") },
+                        singleLine = true,
+                    )
+                }
+                Text("添加学期", fontWeight = FontWeight.Bold)
+                Button(onClick = { onAdd(guessTermKind()) }, modifier = Modifier.fillMaxWidth()) { Text("新学期") }
+                TextButton(onClick = { onAdd("summer") }) { Text("新建暑假小学期") }
+                TextButton(onClick = { onAdd("winter") }) { Text("新建寒假小学期") }
+                TextButton(onClick = { onAdd("practice") }) { Text("新建社会实践课表") }
+                TextButton(onClick = { onAdd("intern") }) { Text("新建实习项目课表") }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("完成") } },
+    )
 }
 
 private val IMPORT_MIME = arrayOf(

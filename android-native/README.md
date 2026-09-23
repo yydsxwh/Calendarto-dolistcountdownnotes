@@ -1,6 +1,6 @@
 # 颗秒日事 · 原生 Android
 
-Kotlin + Jetpack Compose + Material 3。`applicationId` 为 `com.yydsxwh.kemiao.days`。这是官网唯一正式 Android 客户端，当前版本 `2.2.1`（versionCode 11）。
+Kotlin + Jetpack Compose + Material 3。`applicationId` 为 `com.yydsxwh.kemiao.days`。这是官网唯一正式 Android 客户端，当前版本 `2.2.2`（versionCode 12）。
 
 不是 WebView 套壳。账号走现有 BFF：系统 Custom Tabs 打开 `/api/days/auth/login?native=1`，回调 `kemiao-days://auth?handoff=`，再 `POST /api/days/auth/handoff`。Token 存在 EncryptedSharedPreferences。业务数据仍是整份 `AppData`，`GET/PUT /api/days/sync`，冲突按 id 并集（宁可多留）。
 

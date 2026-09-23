@@ -28,12 +28,12 @@ import com.yydsxwh.kemiao.days.data.model.Term
 import com.yydsxwh.kemiao.days.data.model.TimetableViewSettings
 import com.yydsxwh.kemiao.days.data.model.Todo
 import com.yydsxwh.kemiao.days.data.model.applyOcrImport
-import com.yydsxwh.kemiao.days.data.model.currentAcademicYearStart
-import com.yydsxwh.kemiao.days.data.model.defaultWeekCount
 import com.yydsxwh.kemiao.days.data.model.dumpAppData
 import com.yydsxwh.kemiao.days.data.model.emptyData
 import com.yydsxwh.kemiao.days.data.model.fingerprint
 import com.yydsxwh.kemiao.days.data.model.guessTermKind
+import com.yydsxwh.kemiao.days.data.model.withNewTerm
+import com.yydsxwh.kemiao.days.data.model.withoutTerm
 import com.yydsxwh.kemiao.days.data.model.hydrateAppData
 import com.yydsxwh.kemiao.days.data.importing.ImportTooLarge
 import com.yydsxwh.kemiao.days.data.importing.ImportUnsupported
@@ -311,11 +311,8 @@ class DaysViewModel(application: Application) : AndroidViewModel(application) {
     fun updateReminders(patch: ReminderSettings) = commit { it.copy(reminderSettings = patch) }
     fun updateTimetable(patch: TimetableViewSettings) = commit { it.copy(timetableView = patch) }
 
-    fun addTerm() = commit { data ->
-        val kind = guessTermKind()
-        val term = Term(uid(), currentAcademicYearStart(), kind, null, "", defaultWeekCount(kind))
-        data.copy(terms = data.terms + term, currentTermId = term.id, termStart = term.startDate.ifBlank { null })
-    }
+    fun addTerm(kind: String = guessTermKind()) = commit { withNewTerm(it, kind) }
+    fun removeTerm(id: String) = commit { withoutTerm(it, id) }
     fun updateTerm(term: Term) = commit { data ->
         val terms = data.terms.map { if (it.id == term.id) term else it }
         val current = terms.firstOrNull { it.id == data.currentTermId }

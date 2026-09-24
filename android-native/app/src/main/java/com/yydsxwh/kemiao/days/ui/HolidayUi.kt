@@ -107,8 +107,9 @@ private fun HolidayRow(state: DaysUiState, vm: DaysViewModel, item: HolidayOccur
             Row {
                 TextButton(onClick = { vm.toggleHolidayFavorite(item.stableKey, item.region) }) { Text(if (fav) "已收藏" else "收藏") }
                 TextButton(onClick = {
-                    vm.saveReminderRule(ReminderRule(uid(), "holiday", item.stableKey, "notification", "absolute", triggerAt = item.date + "T09:00", enabled = true, createdAt = System.currentTimeMillis()))
-                }) { Text("提前提醒") }
+                    val dayBefore = com.yydsxwh.kemiao.days.data.model.parseIsoDate(item.date).minusDays(1).toString()
+                    vm.saveReminderRule(ReminderRule(uid(), "holiday", item.stableKey, "notification", "absolute", triggerAt = dayBefore + "T09:00", enabled = true, createdAt = System.currentTimeMillis()))
+                }) { Text("提前 1 天提醒") }
             }
         }
     }

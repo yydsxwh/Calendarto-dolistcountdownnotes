@@ -76,7 +76,11 @@ private fun startInstants(data: AppData, holidays: List<HolidayOccurrence>, rule
             val end = until.toLocalDate()
             while (!cursor.isAfter(end)) {
                 if (cursor.dayOfWeek.value == weekday) {
-                    push(parseLocalDateTime("${cursor}T$startTime"), cursor.toString(), title)
+                    val term = data.terms.find { it.id == course?.termId } ?: data.terms.find { it.id == data.currentTermId }
+                    val week = teachingWeekNumber(startOfWeek(cursor, data.timetableView.weekStartsOn), term?.startDate, data.timetableView.weekStartsOn)
+                    if (course == null || courseInTeachingWeek(course, week)) {
+                        push(parseLocalDateTime("${cursor}T$startTime"), cursor.toString(), title)
+                    }
                 }
                 cursor = cursor.plusDays(1)
             }

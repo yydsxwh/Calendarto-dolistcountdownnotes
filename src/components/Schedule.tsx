@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AppStore } from '../hooks/useAppStore'
+import { HolidayBoards, HolidaySettingsCard } from './HolidaySection'
+import { ReminderRulesEditor } from './ReminderRulesEditor'
+import { nextWeekdayStart } from '../lib/reminder-rules'
 import type { DueReminder } from '../lib/reminders'
 import { daysUntil, toISODate, startOfToday } from '../lib/dates'
 import {
@@ -470,6 +473,7 @@ export default function Schedule({
                   {WEEKDAY_LABELS[selected.weekday - 1]} {selected.startTime}-{selected.endTime}
                 </p>
                 <h3>{selected.name}</h3>
+                <ReminderRulesEditor store={store} targetType="course" targetId={selected.id} startLabel={`${WEEKDAY_LABELS[selected.weekday - 1]} ${selected.startTime}`} start={nextWeekdayStart(selected.weekday, selected.startTime)} />
                 <p className="muted">
                   {[selected.location, selected.teacher, selected.weeks, formatDuration(selected.startTime, selected.endTime)]
                     .filter(Boolean)
@@ -921,6 +925,7 @@ export default function Schedule({
                     <div>
                       <span className="pill">{EXAM_KIND_LABEL[exam.kind]}</span>
                       <h3>{exam.name}</h3>
+                      <ReminderRulesEditor store={store} targetType="exam" targetId={exam.id} startLabel={`${exam.date} ${exam.startTime}`} start={new Date(`${exam.date}T${exam.startTime}`)} />
                       <p>
                         {exam.date} {exam.startTime}
                         {exam.endTime ? `-${exam.endTime}` : ''} · {exam.location || '地点待定'}
@@ -938,6 +943,8 @@ export default function Schedule({
         </>
       )}
 
+      {tab === 'remind' && <HolidaySettingsCard store={store} />}
+      {tab === 'remind' && <HolidayBoards store={store} mode="remind" />}
       {tab === 'remind' && (
         <div className="card">
           <h3>上课与考试提醒</h3>

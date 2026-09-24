@@ -646,6 +646,29 @@ select.input {
   background: white;
 }
 
+.cal-holiday {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  line-height: 1.1;
+}
+
+.holiday-mark {
+  display: inline-block;
+  min-width: 1.2em;
+  text-align: center;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.holiday-mark.off { background: #dbeafe; color: #1d4ed8; }
+.holiday-mark.work { background: #ffe4e6; color: #be123c; }
+.holiday-mark.observe { background: #fff7ed; color: #9a3412; }
+
+.cal-cell.is-selected .cal-holiday { color: white; }
+
 .day-panel h3 {
   margin-top: 0;
 }

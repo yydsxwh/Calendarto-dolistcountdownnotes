@@ -6,11 +6,12 @@
     "moduleResolution": "bundler",
     "skipLibCheck": true,
     "strict": true,
+    "resolveJsonModule": true,
     "noEmit": true,
     "types": ["node"],
     "paths": {
       "@yydsxwh/shared/*": ["./node_modules/@yydsxwh/shared/src/*"]
     }
   },
-  "include": ["server/src/**/*.ts"]
+  "include": ["server/src/**/*.ts", "src/vite-env.d.ts"]
 }

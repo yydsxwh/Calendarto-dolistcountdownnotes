@@ -70,6 +70,8 @@ export function mergeAppData(preferred: AppData, other: AppData): AppData {
     selfSchedules: rejectTombstoned(mergeById(preferred.selfSchedules ?? [], other.selfSchedules ?? []), tombstones),
     calendarEvents: rejectTombstoned(mergeById(preferred.calendarEvents ?? [], other.calendarEvents ?? []), tombstones),
     recurringReminders: rejectTombstoned(mergeById(preferred.recurringReminders ?? [], other.recurringReminders ?? []), tombstones),
+    reminderRules: rejectTombstoned(mergeById(preferred.reminderRules ?? [], other.reminderRules ?? []), tombstones),
+    holidayFavorites: rejectTombstoned(mergeById(preferred.holidayFavorites ?? [], other.holidayFavorites ?? []), tombstones),
     terms: mergeById(preferred.terms ?? [], other.terms ?? []),
     tombstones,
   }
@@ -105,6 +107,9 @@ export function fingerprint(data: AppData): string {
     data.terms,
     data.currentTermId,
     data.reminderSettings,
+    data.reminderRules,
+    data.holidaySettings,
+    data.holidayFavorites,
     data.timetableView,
     data.termStart,
   ])

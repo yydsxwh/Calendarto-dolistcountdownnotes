@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { formatTodoTimeRange } from '../lib/calendar-events'
 import { startOfToday, toISODate } from '../lib/dates'
 import type { AppStore } from '../hooks/useAppStore'
+import { ReminderRulesEditor } from './ReminderRulesEditor'
 import type { Priority } from '../types'
 
 const REMINDERS = [
@@ -157,6 +158,13 @@ export default function Todos({
                 <span className={`prio ${t.priority}`} />
                 <span>{t.title}</span>
               </label>
+              <ReminderRulesEditor
+                store={store}
+                targetType="todo"
+                targetId={t.id}
+                startLabel={`${t.dueDate || '未定期'} ${t.dueTime || ''}`.trim()}
+                start={t.dueDate ? new Date(`${t.dueDate}T${t.dueTime || '09:00'}`) : null}
+              />
               <span className="meta">
                 {t.dueDate || '未定期'}
                 {formatTodoTimeRange(t) ? ` ${formatTodoTimeRange(t)}` : ''}

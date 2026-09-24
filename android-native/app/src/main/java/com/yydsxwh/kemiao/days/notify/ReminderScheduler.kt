@@ -7,75 +7,94 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import com.yydsxwh.kemiao.days.data.local.HolidayCache
 import com.yydsxwh.kemiao.days.data.model.AppData
-import com.yydsxwh.kemiao.days.data.model.occursOn
-import com.yydsxwh.kemiao.days.data.model.parseIsoDate
-import com.yydsxwh.kemiao.days.data.model.todayIso
-import com.yydsxwh.kemiao.days.data.model.weekdayOf
-import java.time.LocalDate
-import java.time.LocalDateTime
-import java.time.LocalTime
+import com.yydsxwh.kemiao.days.data.model.planFires
 import java.time.ZoneId
 
 class ReminderScheduler(private val context: Context) {
     private val alarms = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    fun canExact(): Boolean = if (Build.VERSION.SDK_INT >= 31) alarms.canScheduleExactAlarms() else true
 
     fun reschedule(data: AppData) {
-        ensureChannel()
+        ensureChannels()
+        cancelStored()
         if (!data.reminderSettings.enabled) return
-        val today = todayIso()
-        val weekday = weekdayOf(today)
-        var request = 1000
-        data.todos.filter { !it.done && it.dueDate == today }.forEach { todo ->
-            schedule(request++, "待办", todo.title, today, todo.dueTime, todo.remindMinutes)
-        }
-        data.exams.filter { it.date == today }.forEach { exam ->
-            schedule(request++, "考试", exam.name, exam.date, exam.startTime, exam.remindMinutes)
-            if (data.reminderSettings.examAlsoHourBefore) {
-                schedule(request++, "考试", exam.name + "（1小时）", exam.date, exam.startTime, 60)
+        val holidays = runCatching { HolidayCache.all(context) }.getOrDefault(emptyList())
+        val now = java.time.LocalDateTime.now()
+        val plans = planFires(data, holidays, now)
+        val ids = mutableSetOf<String>()
+        plans.forEach { plan ->
+            val code = plan.occurrenceKey.hashCode() and 0x7fffffff
+            val triggerAt = plan.fireAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            if (triggerAt <= System.currentTimeMillis()) return@forEach
+            val intent = Intent(context, ReminderReceiver::class.java)
+                .putExtra("ruleId", plan.ruleId)
+                .putExtra("occurrenceKey", plan.occurrenceKey)
+                .putExtra("delivery", plan.delivery)
+            val pending = PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            val show = PendingIntent.getActivity(
+                context,
+                code,
+                Intent(context, AlarmActivity::class.java).putExtra("ruleId", plan.ruleId).putExtra("occurrenceKey", plan.occurrenceKey),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            runCatching {
+                if (plan.delivery == "alarm" && canExact()) {
+                    alarms.setAlarmClock(AlarmManager.AlarmClockInfo(triggerAt, show), pending)
+                } else if (canExact()) {
+                    alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
+                } else {
+                    alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
+                }
+                ids += code.toString()
             }
         }
-        data.courses.filter { it.weekday == weekday }.forEach { course ->
-            schedule(request++, "上课", course.name, today, course.startTime, course.remindMinutes)
-        }
-        data.selfSchedules.filter { it.weekday == weekday }.forEach { item ->
-            schedule(request++, "自律", item.title, today, item.startTime, item.remindMinutes)
-        }
-        data.calendarEvents.filter { it.date == today }.forEach { event ->
-            schedule(request++, "日程", event.title, event.date, event.startTime, event.remindMinutes)
-        }
-        data.recurringReminders.filter { it.enabled && occursOn(it, today) }.forEach { item ->
-            schedule(request++, "周期提醒", item.title, today, item.remindTime, 0)
-        }
+        prefs.edit().putStringSet(KEY_IDS, ids).apply()
     }
 
-    private fun schedule(id: Int, kind: String, title: String, date: String, time: String?, minutesBefore: Int) {
-        val clock = time?.takeIf { it.length >= 4 } ?: "09:00"
-        val parts = clock.split(":")
-        val hour = parts.getOrNull(0)?.toIntOrNull() ?: 9
-        val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
-        val whenAt = LocalDateTime.of(parseIsoDate(date), LocalTime.of(hour.coerceIn(0, 23), minute.coerceIn(0, 59)))
-            .minusMinutes(minutesBefore.toLong())
-        val millis = whenAt.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        if (millis <= System.currentTimeMillis()) return
+    fun snooze(ruleId: String, occurrenceKey: String, minutes: Int) {
+        val code = (occurrenceKey + ":snooze:" + System.currentTimeMillis()).hashCode() and 0x7fffffff
+        val triggerAt = System.currentTimeMillis() + minutes * 60_000L
         val intent = Intent(context, ReminderReceiver::class.java)
-            .putExtra("title", kind)
-            .putExtra("body", title)
-        val pending = PendingIntent.getBroadcast(context, id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+            .putExtra("ruleId", ruleId)
+            .putExtra("occurrenceKey", occurrenceKey)
+            .putExtra("delivery", "alarm")
+        val pending = PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         runCatching {
-            if (Build.VERSION.SDK_INT >= 31) {
-                if (alarms.canScheduleExactAlarms()) alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pending)
-                else alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pending)
-            } else {
-                alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, millis, pending)
-            }
+            if (canExact()) alarms.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
+            else alarms.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerAt, pending)
         }
+        val ids = prefs.getStringSet(KEY_IDS, emptySet()).orEmpty().toMutableSet()
+        ids += code.toString()
+        prefs.edit().putStringSet(KEY_IDS, ids).apply()
     }
 
-    private fun ensureChannel() {
+    private fun cancelStored() {
+        val ids = prefs.getStringSet(KEY_IDS, emptySet()).orEmpty()
+        ids.forEach { raw ->
+            val code = raw.toIntOrNull() ?: return@forEach
+            val intent = Intent(context, ReminderReceiver::class.java)
+            val pending = PendingIntent.getBroadcast(context, code, intent, PendingIntent.FLAG_NO_CREATE or PendingIntent.FLAG_IMMUTABLE)
+            if (pending != null) alarms.cancel(pending)
+        }
+        prefs.edit().remove(KEY_IDS).apply()
+    }
+
+    private fun ensureChannels() {
         val manager = context.getSystemService(NotificationManager::class.java)
-        manager.createNotificationChannel(NotificationChannel(CHANNEL, "日事提醒", NotificationManager.IMPORTANCE_HIGH))
+        manager.createNotificationChannel(NotificationChannel(CHANNEL, "日事提醒", NotificationManager.IMPORTANCE_DEFAULT))
+        val alarm = NotificationChannel(ALARM_CHANNEL, "日事闹钟", NotificationManager.IMPORTANCE_HIGH)
+        alarm.enableVibration(true)
+        manager.createNotificationChannel(alarm)
     }
 
-    companion object { const val CHANNEL = "kemiao-days-reminders" }
+    companion object {
+        const val CHANNEL = "kemiao-days-reminders"
+        const val ALARM_CHANNEL = "kemiao-days-alarms"
+        private const val PREFS = "kemiao-alarm-ids"
+        private const val KEY_IDS = "ids"
+    }
 }

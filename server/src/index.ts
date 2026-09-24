@@ -20,6 +20,7 @@ import { assertUploadAllowed, createRishiPlatform } from './platform'
 import { issueSession, OIDC_COOKIE, persistSession, publicUser, readOidcStart, revokeSession, SESSION_COOKIE, sessionFromRequest, signOidcStart } from './session'
 import { migrateLegacyIfNeeded, readRecord, writeRecord } from './sync-store'
 import { upsertUser } from './users'
+import { handleHolidayImport, handleHolidays } from './holidays'
 
 const MAX_JSON_BYTES = 4 * 1024 * 1024
 /** 上传类接口统一用 OCR 的上限，客户端与 nginx 也是同一个数 */
@@ -390,6 +391,8 @@ export function createDaysServer(config: DaysConfig) {
       if (path === '/api/days/auth/logout' && req.method === 'GET') return void (await handleLogout(req, res, url, config))
       if (path === '/api/days/auth/handoff' && req.method === 'POST') return void (await handleHandoff(req, res, config))
       if (path === '/api/days/sync') return void (await handleSync(req, res, config))
+      if (path === '/api/days/holidays' && req.method === 'GET') return void (await handleHolidays(req, res, url, config))
+      if (path === '/api/days/admin/holidays') return void (await handleHolidayImport(req, res, config))
       if (path === '/api/days/timetable-ocr') return void (await handleOcr(req, res, config))
       if (path.startsWith('/api/days/files')) return void (await handleFiles(req, res, url, config))
       if (path === '/api/days/admin/me' && req.method === 'GET') return void (await handleAdminMe(req, res, config))

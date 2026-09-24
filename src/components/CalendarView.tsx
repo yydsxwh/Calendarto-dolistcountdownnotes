@@ -19,6 +19,9 @@ import {
 import type { AppStore } from '../hooks/useAppStore'
 import type { CalendarEvent } from '../types'
 import RecurringReminderForm from './RecurringReminderForm'
+import { HolidayDayList } from './HolidaySection'
+import { ReminderRulesEditor } from './ReminderRulesEditor'
+import { holidayBadges, holidayMark, holidaysOn } from '../lib/holidays/query'
 
 const EVENT_REPEAT_OPTIONS: { value: CalendarEvent['repeat']; label: string }[] = [
   { value: 'none', label: '不重复' },
@@ -161,13 +164,20 @@ export default function CalendarView({ store }: { store: AppStore }) {
             const isToday = key === toISODate(today)
             const isSelected = key === iso
             const dots = marks.get(key)
+            const holidayItems = holidaysOn(key, store.data.holidaySettings)
+            const badges = holidayBadges(holidayItems, 1)
+            const holidayLabel = holidayItems.map((item) => `${holidayMark(item)}${item.name}`).join(' ')
             return (
               <button
                 key={idx}
                 className={`cal-cell ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}`}
                 onClick={() => setSelected(date)}
+                aria-label={`${date.getDate()}日${holidayLabel ? ` ${holidayLabel}` : ''}`}
               >
                 {date.getDate()}
+                {badges.shown[0] && (
+                  <span className="cal-holiday">{holidayMark(badges.shown[0])} {badges.shown[0].name}{badges.extra ? ` +${badges.extra}` : ''}</span>
+                )}
                 <span className="dots">
                   {dots?.event && <i className="dot event" />}
                   {dots?.todo && <i className="dot todo" />}
@@ -184,6 +194,7 @@ export default function CalendarView({ store }: { store: AppStore }) {
 
       <aside className="card day-panel">
         <h3>{formatLong(selected)}</h3>
+        <HolidayDayList store={store} date={iso} />
         <div className="row wrap">
           <select className="input slim" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
             <option value="event">日程</option>
@@ -268,6 +279,7 @@ export default function CalendarView({ store }: { store: AppStore }) {
                 {formatEventTime(event) ? `${formatEventTime(event)} ` : ''}
                 {event.title}
                 {event.location ? ` · ${event.location}` : ''}
+                <ReminderRulesEditor store={store} targetType="event" targetId={event.id} startLabel={`${event.date} ${event.startTime || '全天'}`} start={event.startTime ? new Date(`${event.date}T${event.startTime}`) : new Date(`${event.date}T09:00`)} />
                 {event.repeat && event.repeat !== 'none'
                   ? ` · ${EVENT_REPEAT_OPTIONS.find((option) => option.value === event.repeat)?.label ?? ''}`
                   : ''}

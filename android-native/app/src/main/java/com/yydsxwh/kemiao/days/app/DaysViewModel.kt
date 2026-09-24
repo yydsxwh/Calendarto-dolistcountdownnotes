@@ -17,10 +17,13 @@ import com.yydsxwh.kemiao.days.data.model.COUNTDOWN_EMOJIS
 import com.yydsxwh.kemiao.days.data.model.Countdown
 import com.yydsxwh.kemiao.days.data.model.Course
 import com.yydsxwh.kemiao.days.data.model.Exam
+import com.yydsxwh.kemiao.days.data.model.HolidayFavorite
+import com.yydsxwh.kemiao.days.data.model.HolidaySettings
 import com.yydsxwh.kemiao.days.data.model.NOTE_COLORS
 import com.yydsxwh.kemiao.days.data.model.Note
 import com.yydsxwh.kemiao.days.data.model.RecurrenceRule
 import com.yydsxwh.kemiao.days.data.model.RecurringReminder
+import com.yydsxwh.kemiao.days.data.model.ReminderRule
 import com.yydsxwh.kemiao.days.data.model.ReminderSettings
 import com.yydsxwh.kemiao.days.data.model.SelfScheduleItem
 import com.yydsxwh.kemiao.days.data.model.SessionUser
@@ -223,6 +226,11 @@ class DaysViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private fun dropRules(data: AppData, targetType: String, id: String): AppData {
+        val ruleIds = data.reminderRules.filter { it.targetType == targetType && it.targetId == id }.map { it.id }
+        return withTombstones(data, ruleIds).copy(reminderRules = data.reminderRules.filter { it.targetType != targetType || it.targetId != id })
+    }
+
     private fun commit(transform: (AppData) -> AppData) {
         val next = transform(_state.value.data)
         store.save(next)
@@ -255,14 +263,14 @@ class DaysViewModel(application: Application) : AndroidViewModel(application) {
     }
     fun toggleTodo(id: String) = commit { it.copy(todos = it.todos.map { t -> if (t.id == id) t.copy(done = !t.done) else t }) }
     fun updateTodo(item: Todo) = commit { it.copy(todos = it.todos.map { t -> if (t.id == item.id) item else t }) }
-    fun removeTodo(id: String) = commit { withTombstones(it, listOf(id)).copy(todos = it.todos.filter { t -> t.id != id }) }
+    fun removeTodo(id: String) = commit { dropRules(withTombstones(it, listOf(id)), "todo", id).copy(todos = it.todos.filter { t -> t.id != id }) }
 
     fun addCountdown(title: String, date: String, color: String, emoji: String, yearly: Boolean) = commit { data ->
         val item = Countdown(uid(), title.trim(), date, color.ifBlank { COUNTDOWN_COLORS.first() }, emoji.ifBlank { COUNTDOWN_EMOJIS.first() }, yearly, nowMillis())
         if (item.title.isBlank() || item.date.isBlank()) data else data.copy(countdowns = data.countdowns + item)
     }
     fun updateCountdown(item: Countdown) = commit { it.copy(countdowns = it.countdowns.map { c -> if (c.id == item.id) item else c }) }
-    fun removeCountdown(id: String) = commit { withTombstones(it, listOf(id)).copy(countdowns = it.countdowns.filter { c -> c.id != id }) }
+    fun removeCountdown(id: String) = commit { dropRules(withTombstones(it, listOf(id)), "day", id).copy(countdowns = it.countdowns.filter { c -> c.id != id }) }
 
     fun addNote(title: String, body: String, color: String, date: String?) = commit { data ->
         val item = Note(uid(), title.trim(), body, color.ifBlank { NOTE_COLORS.first() }, false, date, nowMillis())
@@ -276,7 +284,7 @@ class DaysViewModel(application: Application) : AndroidViewModel(application) {
         if (ready.name.isBlank()) data else data.copy(courses = data.courses + ready)
     }
     fun updateCourse(item: Course) = commit { it.copy(courses = it.courses.map { c -> if (c.id == item.id) item else c }) }
-    fun removeCourse(id: String) = commit { withTombstones(it, listOf(id)).copy(courses = it.courses.filter { c -> c.id != id }) }
+    fun removeCourse(id: String) = commit { dropRules(withTombstones(it, listOf(id)), "course", id).copy(courses = it.courses.filter { c -> c.id != id }) }
     fun clearCourses() = commit { withTombstones(it, it.courses.map { c -> c.id }).copy(courses = emptyList()) }
 
     fun addExam(item: Exam) = commit { data ->
@@ -284,21 +292,21 @@ class DaysViewModel(application: Application) : AndroidViewModel(application) {
         if (ready.name.isBlank() || ready.date.isBlank()) data else data.copy(exams = (data.exams + ready).sortedBy { it.date })
     }
     fun updateExam(item: Exam) = commit { it.copy(exams = it.exams.map { e -> if (e.id == item.id) item else e }.sortedBy { e -> e.date }) }
-    fun removeExam(id: String) = commit { withTombstones(it, listOf(id)).copy(exams = it.exams.filter { e -> e.id != id }) }
+    fun removeExam(id: String) = commit { dropRules(withTombstones(it, listOf(id)), "exam", id).copy(exams = it.exams.filter { e -> e.id != id }) }
 
     fun addSelf(item: SelfScheduleItem) = commit { data ->
         val ready = item.copy(id = item.id.ifBlank { uid() }, createdAt = item.createdAt.takeIf { it > 0 } ?: nowMillis())
         if (ready.title.isBlank()) data else data.copy(selfSchedules = data.selfSchedules + ready)
     }
     fun updateSelf(item: SelfScheduleItem) = commit { it.copy(selfSchedules = it.selfSchedules.map { s -> if (s.id == item.id) item else s }) }
-    fun removeSelf(id: String) = commit { withTombstones(it, listOf(id)).copy(selfSchedules = it.selfSchedules.filter { s -> s.id != id }) }
+    fun removeSelf(id: String) = commit { dropRules(withTombstones(it, listOf(id)), "self", id).copy(selfSchedules = it.selfSchedules.filter { s -> s.id != id }) }
 
     fun addEvent(item: CalendarEvent) = commit { data ->
         val ready = item.copy(id = item.id.ifBlank { uid() }, createdAt = item.createdAt.takeIf { it > 0 } ?: nowMillis())
         if (ready.title.isBlank() || ready.date.isBlank()) data else data.copy(calendarEvents = data.calendarEvents + ready)
     }
     fun updateEvent(item: CalendarEvent) = commit { it.copy(calendarEvents = it.calendarEvents.map { e -> if (e.id == item.id) item else e }) }
-    fun removeEvent(id: String) = commit { withTombstones(it, listOf(id)).copy(calendarEvents = it.calendarEvents.filter { e -> e.id != id }) }
+    fun removeEvent(id: String) = commit { dropRules(withTombstones(it, listOf(id)), "event", id).copy(calendarEvents = it.calendarEvents.filter { e -> e.id != id }) }
 
     fun addRecurring(item: RecurringReminder) = commit { data ->
         val now = nowMillis()
@@ -309,6 +317,18 @@ class DaysViewModel(application: Application) : AndroidViewModel(application) {
     fun removeRecurring(id: String) = commit { withTombstones(it, listOf(id)).copy(recurringReminders = it.recurringReminders.filter { r -> r.id != id }) }
 
     fun updateReminders(patch: ReminderSettings) = commit { it.copy(reminderSettings = patch) }
+    fun saveReminderRule(rule: ReminderRule) = commit { data ->
+        val existing = data.reminderRules.find { it.id == rule.id }
+        val next = rule.copy(updatedAt = System.currentTimeMillis(), revision = (existing?.revision ?: 0) + 1)
+        data.copy(reminderRules = if (existing == null) data.reminderRules + next else data.reminderRules.map { if (it.id == rule.id) next else it })
+    }
+    fun removeReminderRule(id: String) = commit { withTombstones(it, listOf(id)).copy(reminderRules = it.reminderRules.filter { rule -> rule.id != id }) }
+    fun updateHolidaySettings(patch: HolidaySettings) = commit { it.copy(holidaySettings = patch.copy(updatedAt = System.currentTimeMillis())) }
+    fun toggleHolidayFavorite(stableKey: String, region: String) = commit { data ->
+        val existing = data.holidayFavorites.find { it.stableKey == stableKey }
+        if (existing != null) withTombstones(data, listOf(existing.id)).copy(holidayFavorites = data.holidayFavorites.filter { it.stableKey != stableKey })
+        else data.copy(holidayFavorites = data.holidayFavorites + HolidayFavorite(uid(), stableKey, region, System.currentTimeMillis()))
+    }
     fun updateTimetable(patch: TimetableViewSettings) = commit { it.copy(timetableView = patch) }
 
     fun addTerm(kind: String = guessTermKind()) = commit { withNewTerm(it, kind) }

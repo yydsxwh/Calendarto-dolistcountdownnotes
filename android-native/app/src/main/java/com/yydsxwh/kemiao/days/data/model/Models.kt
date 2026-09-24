@@ -155,6 +155,39 @@ val DaysJson: Json = Json {
 
 @Serializable data class Tombstone(val id: String, val deletedAt: Long)
 
+@Serializable data class ReminderRule(
+    val id: String,
+    val targetType: String,
+    val targetId: String,
+    val delivery: String = "notification",
+    val triggerMode: String = "relative",
+    val triggerAt: String? = null,
+    val offsetMinutes: Int? = null,
+    val timezone: String = "Asia/Shanghai",
+    val enabled: Boolean = false,
+    val snoozeMinutes: Int = 5,
+    val vibrationEnabled: Boolean = true,
+    val createdAt: Long = 0,
+    val updatedAt: Long = 0,
+    val revision: Int = 1,
+)
+
+@Serializable data class HolidaySettings(
+    val showCn: Boolean = true,
+    val showUs: Boolean = false,
+    val showPublic: Boolean = true,
+    val showTraditional: Boolean = true,
+    val showAdjusted: Boolean = true,
+    val updatedAt: Long = 0,
+)
+
+@Serializable data class HolidayFavorite(
+    val id: String,
+    val stableKey: String,
+    val region: String,
+    val createdAt: Long = 0,
+)
+
 @Serializable data class AppData(
     val todos: List<Todo> = emptyList(),
     val countdowns: List<Countdown> = emptyList(),
@@ -164,6 +197,9 @@ val DaysJson: Json = Json {
     val selfSchedules: List<SelfScheduleItem> = emptyList(),
     val calendarEvents: List<CalendarEvent> = emptyList(),
     val recurringReminders: List<RecurringReminder> = emptyList(),
+    val reminderRules: List<ReminderRule> = emptyList(),
+    val holidaySettings: HolidaySettings = HolidaySettings(),
+    val holidayFavorites: List<HolidayFavorite> = emptyList(),
     val reminderSettings: ReminderSettings = ReminderSettings(),
     val terms: List<Term> = emptyList(),
     val currentTermId: String? = null,

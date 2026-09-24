@@ -381,21 +381,28 @@ private fun CalendarScreen(state: DaysUiState, vm: DaysViewModel) {
                     val iso = day?.let { toIsoDate(cursor.withDayOfMonth(it)) }
                     val marked = iso != null && hasItems(state, iso)
                     Box(
-                        Modifier.weight(1f).height(44.dp).clip(CircleShape).clickable(enabled = iso != null) { if (iso != null) selected = iso }.background(if (iso == selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent),
+                        Modifier.weight(1f).height(56.dp).clip(CircleShape).clickable(enabled = iso != null) { if (iso != null) selected = iso }.background(if (iso == selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent),
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(day?.toString() ?: "")
+                            if (iso != null) {
+                                val label = HolidayLines(state, iso).firstOrNull()
+                                if (label != null) Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                            }
                             if (marked) Box(Modifier.size(5.dp).clip(CircleShape).background(MaterialTheme.colorScheme.tertiary))
                         }
                     }
                 }
             }
         }
-        val items = itemsOn(state, selected)
+        val items = itemsOn(state, selected) + HolidayLines(state, selected)
         Text("${formatShort(selected)} · ${items.size} 条", fontWeight = FontWeight.SemiBold)
         if (items.isEmpty()) Text("这一天还是空的", color = MaterialTheme.colorScheme.onSurfaceVariant)
         items.forEach { Text(it) }
+        state.data.calendarEvents.filter { eventMatchesDate(it, selected) }.forEach { event ->
+            ReminderRulesButton(state, vm, "event", event.id, "${event.title} ${event.date}")
+        }
         Button(onClick = { show = true }) { Text("添加日程") }
     }
     if (show) {
@@ -443,6 +450,7 @@ private fun TodosScreen(state: DaysUiState, vm: DaysViewModel) {
                             Column(Modifier.weight(1f)) {
                                 Text(todo.title, fontWeight = FontWeight.Medium)
                                 Text(listOfNotNull(todo.dueDate, todo.dueTime, PRIORITY_LABEL[todo.priority]).joinToString(" · "), style = MaterialTheme.typography.bodySmall)
+                                ReminderRulesButton(state, vm, "todo", todo.id, listOfNotNull(todo.dueDate, todo.dueTime).joinToString(" "))
                             }
                             TextButton(onClick = { vm.removeTodo(todo.id) }) { Text("删除") }
                         }
@@ -570,7 +578,9 @@ private fun ScheduleScreen(state: DaysUiState, vm: DaysViewModel, activity: Acti
         Text("今天星期${WEEKDAY_LABEL.getOrElse(weekday) { "?" }}。图片、PDF、Word 走平台视觉识别；表格能直接解析时不调用模型。", style = MaterialTheme.typography.bodySmall)
     }
     if (show) CourseEditor(null, { show = false }) { vm.addCourse(it); show = false }
-    editing?.let { current -> CourseEditor(current, { editing = null }) { vm.updateCourse(it); editing = null } }
+    editing?.let { current ->
+        CourseEditor(current, { editing = null }, extra = { ReminderRulesButton(state, vm, "course", current.id, "周${current.weekday} ${current.startTime}") }) { vm.updateCourse(it); editing = null }
+    }
     if (confirmClear) {
         AlertDialog(
             onDismissRequest = { confirmClear = false },
@@ -730,6 +740,9 @@ private fun RemindersPane(state: DaysUiState, vm: DaysViewModel) {
                 }
             }
         }
+        item { HolidaySettingsCard(state, vm) }
+        item { AlarmPermissionNote() }
+        item { HolidayBoard(state, vm, upcomingOnly = true) }
         item { RecurringBlock(state, vm) }
     }
 }
@@ -792,7 +805,7 @@ private fun ImportPreviewDialog(state: DaysUiState, vm: DaysViewModel) {
 }
 
 @Composable
-private fun CourseEditor(initial: Course?, onDismiss: () -> Unit, onSave: (Course) -> Unit) {
+private fun CourseEditor(initial: Course?, onDismiss: () -> Unit, extra: @Composable () -> Unit = {}, onSave: (Course) -> Unit) {
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
     var weekday by remember { mutableStateOf((initial?.weekday ?: 1).toString()) }
     var start by remember { mutableStateOf(initial?.startTime ?: "08:00") }
@@ -810,6 +823,7 @@ private fun CourseEditor(initial: Course?, onDismiss: () -> Unit, onSave: (Cours
                 OutlinedTextField(end, { end = it }, label = { Text("结束") })
                 OutlinedTextField(room, { room = it }, label = { Text("教室") })
                 OutlinedTextField(teacher, { teacher = it }, label = { Text("老师") })
+                extra()
             }
         },
         confirmButton = {
@@ -838,6 +852,7 @@ private fun ExamsScreen(state: DaysUiState, vm: DaysViewModel, activity: Activit
                     Column(Modifier.padding(12.dp)) {
                         Text("${exam.name} · ${EXAM_KIND_LABEL[exam.kind] ?: exam.kind}", fontWeight = FontWeight.Medium)
                         Text("${exam.date} ${exam.startTime} ${exam.location.orEmpty()} ${exam.seat.orEmpty()}")
+                        ReminderRulesButton(state, vm, "exam", exam.id, "${exam.date} ${exam.startTime}")
                         TextButton(onClick = { vm.removeExam(exam.id) }) { Text("删除") }
                     }
                 }
@@ -890,6 +905,7 @@ private fun SelfScreen(state: DaysUiState, vm: DaysViewModel, activity: Activity
                 Column(Modifier.padding(12.dp)) {
                     Text("${item.title} · 周${WEEKDAY_LABEL.getOrElse(item.weekday) { "?" }}", fontWeight = FontWeight.Medium)
                     Text("${item.startTime}-${item.endTime}  ${PRIORITY_LABEL[item.priority]}")
+                    ReminderRulesButton(state, vm, "self", item.id, "周${item.weekday} ${item.startTime}")
                     TextButton(onClick = { vm.removeSelf(item.id) }) { Text("删除") }
                 }
             }
@@ -920,7 +936,9 @@ private fun SelfScreen(state: DaysUiState, vm: DaysViewModel, activity: Activity
 @Composable
 private fun CountdownScreen(state: DaysUiState, vm: DaysViewModel) {
     var show by remember { mutableStateOf(false) }
-    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        HolidaySettingsCard(state, vm)
+        HolidayBoard(state, vm, upcomingOnly = false)
         if (state.data.countdowns.isEmpty()) EmptyState("还没有日子", "生日、节日、开学都可以记。原来的倒数日和纪念日还在这里。")
         state.data.countdowns.sortedBy { daysUntil(nextOccurrence(it.date, it.repeatYearly)) }.forEach { item ->
             val left = daysUntil(nextOccurrence(item.date, item.repeatYearly))
@@ -929,6 +947,7 @@ private fun CountdownScreen(state: DaysUiState, vm: DaysViewModel) {
                     Text("${item.emoji} ${item.title}", fontWeight = FontWeight.Bold)
                     Text(if (left >= 0) "还有 $left 天" else "已经过去 ${-left} 天", style = MaterialTheme.typography.headlineMedium)
                     Text(item.date + if (item.repeatYearly) " · 每年" else "")
+                    ReminderRulesButton(state, vm, "day", item.id, item.date)
                     TextButton(onClick = { vm.removeCountdown(item.id) }) { Text("删除") }
                 }
             }

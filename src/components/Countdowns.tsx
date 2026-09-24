@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { dayFacts, formatShort } from '../lib/dates'
 import { COUNTDOWN_COLORS, COUNTDOWN_EMOJIS } from '../types'
 import type { AppStore } from '../hooks/useAppStore'
+import { HolidayBoards, HolidaySettingsCard } from './HolidaySection'
+import { ReminderRulesEditor } from './ReminderRulesEditor'
 
 type Filter = 'all' | 'upcoming' | 'passed'
 
@@ -51,6 +53,8 @@ export default function Countdowns({ store }: { store: AppStore }) {
           出生那天、公司成立那天，都记在这里。
         </p>
       </header>
+      <HolidaySettingsCard store={store} />
+      <HolidayBoards store={store} mode="days" />
 
       <div className="card">
         <div className="row wrap">
@@ -141,6 +145,7 @@ export default function Countdowns({ store }: { store: AppStore }) {
                 </button>
               </div>
               <h3>{c.title}</h3>
+              <ReminderRulesEditor store={store} targetType="day" targetId={c.id} startLabel={c.date} start={new Date(`${c.date}T09:00`)} />
               <p className="cd-date">
                 {c.repeatYearly ? `${formatShort(c.date)} · 每年` : c.date}
                 {f.originPassed && c.repeatYearly && f.upcomingOrdinal > 0 && ` · 第 ${f.upcomingOrdinal} 年`}

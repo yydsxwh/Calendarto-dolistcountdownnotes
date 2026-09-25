@@ -40,7 +40,7 @@ export async function writeRecord(config: DaysConfig, userKey: string, record: S
 function isEmptyData(data: unknown): boolean {
   if (!data || typeof data !== 'object') return true
   const record = data as Record<string, unknown>
-  const lists = ['todos', 'countdowns', 'notes', 'courses', 'exams', 'selfSchedules', 'calendarEvents', 'recurringReminders']
+  const lists = ['todos', 'countdowns', 'notes', 'courses', 'exams', 'selfSchedules', 'calendarEvents', 'recurringReminders', 'remarks', 'reminderRules']
   return lists.every((key) => !Array.isArray(record[key]) || record[key].length === 0)
 }
 

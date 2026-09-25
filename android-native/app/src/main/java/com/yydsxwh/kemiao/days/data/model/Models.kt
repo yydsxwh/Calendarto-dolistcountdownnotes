@@ -190,6 +190,18 @@ val DaysJson: Json = Json {
     val createdAt: Long = 0,
 )
 
+@Serializable data class Remark(
+    val id: String,
+    val kind: String,
+    val date: String? = null,
+    val courseId: String? = null,
+    val occurrenceKey: String? = null,
+    val body: String = "",
+    val createdAt: Long = 0,
+    val updatedAt: Long = 0,
+    val revision: Int = 1,
+)
+
 @Serializable data class AppData(
     val todos: List<Todo> = emptyList(),
     val countdowns: List<Countdown> = emptyList(),
@@ -199,6 +211,7 @@ val DaysJson: Json = Json {
     val selfSchedules: List<SelfScheduleItem> = emptyList(),
     val calendarEvents: List<CalendarEvent> = emptyList(),
     val recurringReminders: List<RecurringReminder> = emptyList(),
+    val remarks: List<Remark> = emptyList(),
     val reminderRules: List<ReminderRule> = emptyList(),
     val holidaySettings: HolidaySettings = HolidaySettings(),
     val holidayFavorites: List<HolidayFavorite> = emptyList(),

@@ -13,8 +13,8 @@ android {
         applicationId = "com.yydsxwh.kemiao.days"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "2.3.3"
+        versionCode = 17
+        versionName = "2.3.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "DAYS_API_ORIGIN", "\"https://www.yydsxwh.com\"")

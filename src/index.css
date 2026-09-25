@@ -677,6 +677,35 @@ select.input {
 
 .cal-cell.is-selected .cal-more { color: white; }
 
+.detail-layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  background: rgba(15, 23, 42, 0.38);
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.detail-sheet {
+  width: min(720px, 100%);
+  max-height: min(88vh, 100%);
+  overflow: auto;
+  background: var(--paper);
+  color: var(--ink);
+  border-radius: 20px 20px 0 0;
+  padding: 20px 20px calc(24px + env(safe-area-inset-bottom));
+}
+
+.detail-row {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  justify-content: flex-start;
+  text-align: left;
+  white-space: normal;
+}
+
 .day-panel h3 {
   margin-top: 0;
 }

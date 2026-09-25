@@ -369,6 +369,11 @@ private fun CalendarScreen(state: DaysUiState, vm: DaysViewModel) {
     var show by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<CalendarEvent?>(null) }
     var pendingDelete by remember { mutableStateOf<CalendarEvent?>(null) }
+    var detailDate by remember { mutableStateOf<String?>(null) }
+    var editingTodo by remember { mutableStateOf<Todo?>(null) }
+    var editingExam by remember { mutableStateOf<Exam?>(null) }
+    var openedCourse by remember { mutableStateOf<Pair<Course, String>?>(null) }
+    var editingCourse by remember { mutableStateOf<Course?>(null) }
     val days = daysInMonth(cursor.year, cursor.monthValue)
     val firstWeekday = ((cursor.dayOfWeek.value) % 7)
     Column(
@@ -388,7 +393,7 @@ private fun CalendarScreen(state: DaysUiState, vm: DaysViewModel) {
                     val iso = day?.let { toIsoDate(cursor.withDayOfMonth(it)) }
                     val marked = iso != null && hasItems(state, iso)
                     Box(
-                        Modifier.weight(1f).heightIn(min = 56.dp).clip(CircleShape).clickable(enabled = iso != null) { if (iso != null) selected = iso }.background(if (iso == selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent),
+                        Modifier.weight(1f).heightIn(min = 56.dp).clip(CircleShape).clickable(enabled = iso != null) { if (iso != null) { selected = iso; detailDate = iso } }.background(if (iso == selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent),
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -444,6 +449,40 @@ private fun CalendarScreen(state: DaysUiState, vm: DaysViewModel) {
             confirmButton = { Button(onClick = { vm.removeEvent(current.id); pendingDelete = null }) { Text("删除") } },
             dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("取消") } },
         )
+    }
+    detailDate?.let { iso ->
+        DateDetailDialog(
+            state = state,
+            vm = vm,
+            iso = iso,
+            onOpenEvent = { id -> editing = state.data.calendarEvents.find { it.id == id } },
+            onOpenTodo = { id -> editingTodo = state.data.todos.find { it.id == id } },
+            onOpenCourse = { course, day -> openedCourse = course to day },
+            onOpenExam = { id -> editingExam = state.data.exams.find { it.id == id } },
+            onClose = { detailDate = null },
+        )
+    }
+    editingTodo?.let { current ->
+        TodoEditor(current, { editingTodo = null }) { title, date, time, pri, remind ->
+            vm.updateTodo(current.copy(title = title, dueDate = date, dueTime = time, priority = pri, remindMinutes = remind))
+            editingTodo = null
+        }
+    }
+    editingExam?.let { current ->
+        AlertDialog(
+            onDismissRequest = { editingExam = null },
+            title = { Text(current.name) },
+            text = { Text("${current.date} ${current.startTime}${current.endTime?.let { "-$it" }.orEmpty()} ${current.location.orEmpty()}") },
+            confirmButton = { Button(onClick = { editingExam = null }) { Text("关闭") } },
+            dismissButton = { TextButton(onClick = { vm.removeExam(current.id); editingExam = null }) { Text("删除考试") } },
+        )
+    }
+    openedCourse?.let { (course, day) ->
+        val latest = state.data.courses.find { it.id == course.id } ?: course
+        CourseDetailDialog(state, vm, latest, day, onEditCourse = { editingCourse = latest }, onClose = { openedCourse = null })
+    }
+    editingCourse?.let { current ->
+        CourseEditor(current, { editingCourse = null }) { vm.updateCourse(it); editingCourse = null }
     }
 }
 
@@ -538,6 +577,7 @@ private fun TodoEditor(initial: Todo?, onDismiss: () -> Unit, onSave: (String, S
 private fun ScheduleScreen(state: DaysUiState, vm: DaysViewModel, activity: Activity) {
     var show by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Course?>(null) }
+    var opened by remember { mutableStateOf<Pair<String, String>?>(null) }
     var confirmClear by remember { mutableStateOf(false) }
     var termsOpen by remember { mutableStateOf(false) }
     var deleteTermId by remember { mutableStateOf<String?>(null) }
@@ -597,7 +637,9 @@ private fun ScheduleScreen(state: DaysUiState, vm: DaysViewModel, activity: Acti
             Modifier.weight(1f).fillMaxWidth(),
             exams = weekExams,
             hiddenHours = state.data.timetableView.hiddenHours,
-        ) { editing = it }
+            columnDates = days.associate { it.weekday to it.iso },
+            onOpenCourse = { course, iso -> opened = course.id to iso },
+        )
         if (state.importing) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CircularProgressIndicator(Modifier.size(18.dp))
@@ -617,6 +659,12 @@ private fun ScheduleScreen(state: DaysUiState, vm: DaysViewModel, activity: Acti
     if (show) CourseEditor(null, { show = false }) { vm.addCourse(it); show = false }
     editing?.let { current ->
         CourseEditor(current, { editing = null }, extra = { ReminderRulesButton(state, vm, "course", current.id, "周${current.weekday} ${current.startTime}") }) { vm.updateCourse(it); editing = null }
+    }
+    opened?.let { (id, iso) ->
+        val course = state.data.courses.find { it.id == id }
+        if (course != null) {
+            CourseDetailDialog(state, vm, course, iso, onEditCourse = { editing = course }, onClose = { opened = null })
+        }
     }
     if (confirmClear) {
         AlertDialog(

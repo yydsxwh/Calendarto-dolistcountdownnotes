@@ -26,6 +26,7 @@ fun hydrateAppData(raw: AppData?): AppData {
         exams = raw.exams,
         selfSchedules = raw.selfSchedules.map { it.copy(priority = it.priority.ifBlank { "medium" }) },
         calendarEvents = raw.calendarEvents.map { it.copy(priority = it.priority.ifBlank { "medium" }, repeat = it.repeat.ifBlank { "none" }) },
+        remarks = raw.remarks,
         recurringReminders = raw.recurringReminders.map { item ->
             item.copy(
                 rule = item.rule.copy(
@@ -59,7 +60,8 @@ fun isEmptyData(data: AppData?): Boolean {
     if (data == null) return true
     return data.todos.isEmpty() && data.countdowns.isEmpty() && data.notes.isEmpty() &&
         data.courses.isEmpty() && data.exams.isEmpty() && data.selfSchedules.isEmpty() &&
-        data.calendarEvents.isEmpty() && data.recurringReminders.isEmpty()
+        data.calendarEvents.isEmpty() && data.recurringReminders.isEmpty() &&
+        data.remarks.isEmpty() && data.reminderRules.isEmpty()
 }
 
 fun fingerprint(data: AppData): String = DaysJson.encodeToString(AppData.serializer(), data)
@@ -121,6 +123,7 @@ fun mergeAppData(preferred: AppData, other: AppData): AppData {
             selfSchedules = rejectTombstoned(mergeByIdTyped(preferred.selfSchedules, other.selfSchedules, { it.id }, { it.createdAt }), tombstones, { it.id }, { it.createdAt }),
             calendarEvents = rejectTombstoned(mergeByIdTyped(preferred.calendarEvents, other.calendarEvents, { it.id }, { maxOf(it.updatedAt, it.createdAt) }), tombstones, { it.id }, { maxOf(it.updatedAt, it.createdAt) }),
             recurringReminders = rejectTombstoned(mergeByIdTyped(preferred.recurringReminders, other.recurringReminders, { it.id }, ::reminderStamp), tombstones, { it.id }, ::reminderStamp),
+            remarks = rejectTombstoned(mergeByIdTyped(preferred.remarks, other.remarks, { it.id }, { it.updatedAt }), tombstones, { it.id }, { it.updatedAt }),
             reminderRules = rejectTombstoned(mergeByIdTyped(preferred.reminderRules, other.reminderRules, { it.id }, { it.updatedAt }), tombstones, { it.id }, { it.updatedAt }),
             holidayFavorites = rejectTombstoned(mergeByIdTyped(preferred.holidayFavorites, other.holidayFavorites, { it.id }, { it.createdAt }), tombstones, { it.id }, { it.createdAt }),
             holidaySettings = if (preferred.holidaySettings.updatedAt >= other.holidaySettings.updatedAt) preferred.holidaySettings else other.holidaySettings,

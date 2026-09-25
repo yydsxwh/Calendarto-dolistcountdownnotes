@@ -22,6 +22,7 @@ import RecurringReminderForm from './RecurringReminderForm'
 import { HolidayDayList } from './HolidaySection'
 import { ReminderRulesEditor } from './ReminderRulesEditor'
 import { holidayBadges, holidayMark, holidaysOn } from '../lib/holidays/query'
+import { DateDetailDialog } from './DateDetailDialog'
 
 const EVENT_REPEAT_OPTIONS: { value: CalendarEvent['repeat']; label: string }[] = [
   { value: 'none', label: '不重复' },
@@ -49,6 +50,7 @@ export default function CalendarView({ store }: { store: AppStore }) {
   const [eventNote, setEventNote] = useState('')
   const [draftEventId, setDraftEventId] = useState(() => crypto.randomUUID())
   const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null)
+  const [dayDetail, setDayDetail] = useState(false)
 
   const iso = toISODate(selected)
   const cells = useMemo(() => monthCells(view), [view])
@@ -181,7 +183,7 @@ export default function CalendarView({ store }: { store: AppStore }) {
               <button
                 key={idx}
                 className={`cal-cell ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}`}
-                onClick={() => setSelected(date)}
+                onClick={() => { setSelected(date); setDayDetail(true) }}
                 aria-label={`${date.getDate()}日${holidayLabel ? ` ${holidayLabel}` : ''}`}
               >
                 {date.getDate()}
@@ -427,6 +429,21 @@ export default function CalendarView({ store }: { store: AppStore }) {
           ))}
         </ul>
       </aside>
+      {dayDetail ? <DateDetailDialog store={store} iso={iso} onClose={() => setDayDetail(false)} onOpenEvent={(id) => {
+        const event = store.data.calendarEvents.find((item) => item.id === id)
+        if (!event) return
+        setKind('event')
+        setEditingEventId(event.id)
+        setQuick(event.title)
+        setAllDay(event.allDay)
+        setStartTime(event.startTime || '09:00')
+        setEndTime(event.endTime || '10:00')
+        setLocation(event.location || '')
+        setEventNote(event.note || '')
+        setRepeat(event.repeat ?? 'none')
+        setEventRemind(event.remindMinutes)
+        setDayDetail(false)
+      }} /> : null}
     </section>
   )
 }

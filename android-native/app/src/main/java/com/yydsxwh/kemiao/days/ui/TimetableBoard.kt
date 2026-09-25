@@ -54,7 +54,9 @@ fun TimetableBoard(
     modifier: Modifier = Modifier,
     exams: List<Exam> = emptyList(),
     hiddenHours: List<Int> = emptyList(),
+    columnDates: Map<Int, String> = emptyMap(),
     onCourseClick: (Course) -> Unit = {},
+    onOpenCourse: (Course, String) -> Unit = { course, _ -> onCourseClick(course) },
 ) {
     val displayHidden = if (courses.isEmpty() && exams.isEmpty() && hiddenHours.isEmpty()) {
         (0..7).toList() + (19..23).toList()
@@ -120,6 +122,8 @@ fun TimetableBoard(
                         axis = axis,
                         bottomId = bottomId,
                         onCourseClick = onCourseClick,
+                        columnIso = columnDates[day],
+                        onOpenCourse = onOpenCourse,
                         modifier = Modifier.weight(1f).fillMaxHeight().testTag("day-column-$day"),
                     )
                 }
@@ -135,6 +139,8 @@ private fun DayColumn(
     axis: com.yydsxwh.kemiao.days.data.model.TimeAxis,
     bottomId: String?,
     onCourseClick: (Course) -> Unit,
+    columnIso: String?,
+    onOpenCourse: (Course, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val blocks = layoutBlocks(
@@ -178,7 +184,10 @@ private fun DayColumn(
                         .height(block.height.dp)
                         .padding(1.dp)
                         .testTag(if (course.id == bottomId) "course-bottom" else "course-${course.id}")
-                        .clickable { onCourseClick(course) },
+                        .clickable {
+                            val iso = columnIso
+                            if (iso != null) onOpenCourse(course, iso) else onCourseClick(course)
+                        },
                     colors = CardDefaults.cardColors(containerColor = courseColor(course.color), contentColor = Color.White),
                 ) {
                     Column(Modifier.padding(2.dp)) {

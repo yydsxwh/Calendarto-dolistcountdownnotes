@@ -23,6 +23,7 @@ import com.yydsxwh.kemiao.days.data.model.NOTE_COLORS
 import com.yydsxwh.kemiao.days.data.model.Note
 import com.yydsxwh.kemiao.days.data.model.RecurrenceRule
 import com.yydsxwh.kemiao.days.data.model.RecurringReminder
+import com.yydsxwh.kemiao.days.data.model.Remark
 import com.yydsxwh.kemiao.days.data.model.ReminderRule
 import com.yydsxwh.kemiao.days.data.model.ReminderSettings
 import com.yydsxwh.kemiao.days.data.model.SelfScheduleItem
@@ -36,6 +37,11 @@ import com.yydsxwh.kemiao.days.data.model.emptyData
 import com.yydsxwh.kemiao.days.data.model.fingerprint
 import com.yydsxwh.kemiao.days.data.model.insertCalendarEvent
 import com.yydsxwh.kemiao.days.data.model.replaceCalendarEvent
+import com.yydsxwh.kemiao.days.data.model.courseRemarkId
+import com.yydsxwh.kemiao.days.data.model.dayRemarkId
+import com.yydsxwh.kemiao.days.data.model.occurrenceRemarkId
+import com.yydsxwh.kemiao.days.data.model.occurrenceKey
+import com.yydsxwh.kemiao.days.data.model.upsertRemark
 import com.yydsxwh.kemiao.days.data.model.upsertReminderRule
 import com.yydsxwh.kemiao.days.data.model.guessTermKind
 import com.yydsxwh.kemiao.days.data.model.withNewTerm
@@ -311,6 +317,24 @@ class DaysViewModel(application: Application) : AndroidViewModel(application) {
         data.copy(calendarEvents = replaceCalendarEvent(data.calendarEvents, item, nowMillis()))
     }
     fun removeEvent(id: String) = commit { dropRules(withTombstones(it, listOf(id)), "event", id).copy(calendarEvents = it.calendarEvents.filter { e -> e.id != id }) }
+
+    fun saveRemark(kind: String, body: String, date: String?, courseId: String?, startTime: String?) = commit { data ->
+        val id = when (kind) {
+            "day" -> dayRemarkId(date.orEmpty())
+            "course" -> courseRemarkId(courseId.orEmpty())
+            else -> occurrenceRemarkId(courseId.orEmpty(), date.orEmpty(), startTime.orEmpty())
+        }
+        val next = Remark(id, kind, date, courseId, if (kind == "occurrence") occurrenceKey(courseId.orEmpty(), date.orEmpty(), startTime.orEmpty()) else null, body)
+        val remarks = upsertRemark(data.remarks, next, nowMillis())
+        val courses = if (kind == "course" && !courseId.isNullOrBlank()) data.courses.map { if (it.id == courseId) it.copy(note = body) else it } else data.courses
+        if (remarks === data.remarks) data else data.copy(remarks = remarks, courses = courses)
+    }
+
+    fun removeRemark(id: String) = commit { data ->
+        val target = data.remarks.find { it.id == id }
+        val courses = if (target?.kind == "course") data.courses.map { if (it.id == target.courseId) it.copy(note = null) else it } else data.courses
+        withTombstones(data, listOf(id)).copy(remarks = data.remarks.filter { it.id != id }, courses = courses)
+    }
 
     fun addRecurring(item: RecurringReminder) = commit { data ->
         val now = nowMillis()

@@ -3,7 +3,7 @@
 declare module 'lunar-javascript' {
   export class Solar {
     static fromYmd(year: number, month: number, day: number): Solar
-    getLunar(): { getJieQi(): string }
+    getLunar(): { getJieQi(): string; getMonthInChinese(): string; getDayInChinese(): string }
     toYmd(): string
   }
   export class Lunar {

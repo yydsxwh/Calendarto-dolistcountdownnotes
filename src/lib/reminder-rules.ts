@@ -10,15 +10,15 @@ export interface FirePlan {
 }
 
 function parseLocal(value: string): Date | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?$/.exec(value)
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(value)
   if (!match) return null
-  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4] ?? 0), Number(match[5] ?? 0), 0, 0)
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4] ?? 0), Number(match[5] ?? 0), Number(match[6] ?? 0), 0)
   return Number.isNaN(date.getTime()) ? null : date
 }
 
 function formatLocal(date: Date): string {
   const p = (n: number) => String(n).padStart(2, '0')
-  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}:${p(date.getSeconds())}`
 }
 
 function addMinutes(date: Date, minutes: number): Date {
@@ -88,7 +88,7 @@ export function planFires(data: AppData, now = new Date(), horizonDays = 21): Fi
       if (!fire || fire.getTime() <= now.getTime() || fire.getTime() > until.getTime()) continue
       plans.push({
         ruleId: rule.id,
-        occurrenceKey: `${rule.id}:${start.key}:${rule.revision}`,
+        occurrenceKey: `${rule.id}:${start.key}:${formatLocal(fire)}:${rule.revision}`,
         fireAt: formatLocal(fire),
         title: start.title,
         delivery: rule.delivery,

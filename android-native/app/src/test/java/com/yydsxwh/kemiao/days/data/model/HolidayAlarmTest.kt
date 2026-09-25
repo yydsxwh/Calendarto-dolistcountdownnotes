@@ -18,7 +18,7 @@ class HolidayAlarmTest {
             ),
         )
         val fires = planFires(data, emptyList(), LocalDateTime.of(2026, 9, 25, 9, 0), 2)
-        assertEquals(listOf("2026-09-25T09:55", "2026-09-25T09:58", "2026-09-25T17:00"), fires.map { formatFire(it.fireAt) })
+        assertEquals(listOf("2026-09-25T09:55:00", "2026-09-25T09:58:00", "2026-09-25T17:00:00"), fires.map { formatFire(it.fireAt) })
     }
 
     @Test
@@ -40,7 +40,7 @@ class HolidayAlarmTest {
         )
         val fires = planFires(course, emptyList(), LocalDateTime.of(2026, 9, 21, 8, 0), 14)
         assertTrue(fires.isNotEmpty())
-        assertTrue(fires.all { formatFire(it.fireAt).endsWith("T08:50") })
+        assertTrue(fires.all { formatFire(it.fireAt).endsWith("T08:50:00") })
     }
 
     @Test
@@ -50,5 +50,19 @@ class HolidayAlarmTest {
             reminderRules = listOf(ReminderRule("a", "todo", "t", "alarm", "absolute", "2026-09-25T09:55", enabled = false)),
         )
         assertTrue(planFires(data, emptyList(), LocalDateTime.of(2026, 9, 25, 9, 0), 2).isEmpty())
+    }
+
+    @Test
+    fun secondsStayDistinct() {
+        val data = emptyData().copy(
+            todos = listOf(Todo("t", "抢票", false, "2026-09-25", "10:00", null, "high", 0, 1)),
+            reminderRules = listOf(
+                ReminderRule("s1", "todo", "t", "alarm", "absolute", "2026-09-25T09:55:30", null, enabled = true),
+                ReminderRule("s2", "todo", "t", "alarm", "absolute", "2026-09-25T09:55:45", null, enabled = true),
+            ),
+        )
+        val fires = planFires(data, emptyList(), LocalDateTime.of(2026, 9, 25, 9, 0), 2)
+        assertEquals(listOf("2026-09-25T09:55:30", "2026-09-25T09:55:45"), fires.map { formatFire(it.fireAt) })
+        assertEquals(2, fires.map { it.occurrenceKey }.toSet().size)
     }
 }

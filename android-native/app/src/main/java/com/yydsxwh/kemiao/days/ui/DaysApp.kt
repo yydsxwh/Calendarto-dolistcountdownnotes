@@ -365,6 +365,8 @@ private fun CalendarScreen(state: DaysUiState, vm: DaysViewModel) {
     var cursor by remember { mutableStateOf(LocalDate.now().withDayOfMonth(1)) }
     var selected by remember { mutableStateOf(todayIso()) }
     var show by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<CalendarEvent?>(null) }
+    var pendingDelete by remember { mutableStateOf<CalendarEvent?>(null) }
     val days = daysInMonth(cursor.year, cursor.monthValue)
     val firstWeekday = ((cursor.dayOfWeek.value) % 7)
     Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -391,26 +393,55 @@ private fun CalendarScreen(state: DaysUiState, vm: DaysViewModel) {
                                 if (label != null) Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
                             }
                             if (marked) Box(Modifier.size(5.dp).clip(CircleShape).background(MaterialTheme.colorScheme.tertiary))
+                            val eventCount = if (iso == null) 0 else state.data.calendarEvents.count { eventMatchesDate(it, iso) }
+                            if (eventCount > 1) Text("+${eventCount - 1}", style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }
             }
         }
         val items = itemsOn(state, selected) + HolidayLines(state, selected)
-        Text("${formatShort(selected)} · ${items.size} 条", fontWeight = FontWeight.SemiBold)
-        if (items.isEmpty()) Text("这一天还是空的", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        items.forEach { Text(it) }
-        state.data.calendarEvents.filter { eventMatchesDate(it, selected) }.forEach { event ->
-            ReminderRulesButton(state, vm, "event", event.id, "${event.title} ${event.date}")
+        val events = state.data.calendarEvents.filter { eventMatchesDate(it, selected) }.sortedWith(compareBy<CalendarEvent> { !it.allDay }.thenBy { it.startTime ?: "99:99" }.thenBy { it.createdAt }.thenBy { it.id })
+        Text("${formatShort(selected)} · ${items.size + events.size} 条", fontWeight = FontWeight.SemiBold)
+        Text("日程", fontWeight = FontWeight.SemiBold)
+        if (events.isEmpty()) Text("这一天还没有日程", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        events.forEach { event ->
+            Card(Modifier.fillMaxWidth().clickable { editing = event }) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(event.title, fontWeight = FontWeight.Medium)
+                    Text(listOfNotNull(if (event.allDay) "全天" else event.startTime, event.endTime?.let { "到 $it" }, event.location, event.note).joinToString(" · "), style = MaterialTheme.typography.bodySmall)
+                    if (event.repeat != "none") Text("重复日程。删除会去掉整条规则，不能只删这一天。", style = MaterialTheme.typography.bodySmall)
+                    Row {
+                        TextButton(onClick = { editing = event }) { Text("编辑") }
+                        TextButton(onClick = { pendingDelete = event }) { Text("删除") }
+                        ReminderRulesButton(state, vm, "event", event.id, "${event.title} ${event.date} ${event.startTime ?: "全天"}")
+                    }
+                }
+            }
         }
-        Button(onClick = { show = true }) { Text("添加日程") }
+        Button(onClick = { show = true }, modifier = Modifier.fillMaxWidth()) { Text("添加日程") }
+        if (items.isEmpty()) Text("这一天没有其他事项", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        items.forEach { Text(it) }
     }
     if (show) {
-        EventEditor(initial = CalendarEvent(uid(), "", selected, null, null, true, null, null, COURSE_COLORS.first(), "medium", 15, "none", nowMillis()), onDismiss = { show = false }) { vm.addEvent(it); show = false }
+        EventEditor(initial = CalendarEvent(uid(), "", selected, "09:00", "10:00", false, null, null, COURSE_COLORS.first(), "medium", 15, "none", nowMillis()), editing = false, onDismiss = { show = false }) { vm.addEvent(it); show = false }
+    }
+    editing?.let { current ->
+        EventEditor(initial = current, editing = true, onDismiss = { editing = null }) { vm.updateEvent(it); editing = null }
+    }
+    pendingDelete?.let { current ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("删除日程") },
+            text = { Text(if (current.repeat == "none") "确认删除「${current.title}」？同一天的其他日程会保留。" else "确认删除「${current.title}」的整条重复日程？不能只删这一天。") },
+            confirmButton = { Button(onClick = { vm.removeEvent(current.id); pendingDelete = null }) { Text("删除") } },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("取消") } },
+        )
     }
 }
 
-private fun hasItems(state: DaysUiState, iso: String) = itemsOn(state, iso).isNotEmpty()
+private fun hasItems(state: DaysUiState, iso: String) =
+    itemsOn(state, iso).isNotEmpty() || state.data.calendarEvents.any { eventMatchesDate(it, iso) }
 
 private fun itemsOn(state: DaysUiState, iso: String): List<String> {
     val d = state.data
@@ -418,7 +449,6 @@ private fun itemsOn(state: DaysUiState, iso: String): List<String> {
         d.exams.filter { it.date == iso }.map { "考试 ${it.name}" } +
         d.notes.filter { it.date == iso }.map { "便签 ${it.title.ifBlank { it.body }}" } +
         d.countdowns.filter { nextOccurrence(it.date, it.repeatYearly) == iso || it.date == iso }.map { "倒数 ${it.title}" } +
-        d.calendarEvents.filter { eventMatchesDate(it, iso) }.map { "日程 ${it.title}" } +
         d.recurringReminders.filter { occursOn(it, iso) }.map { "周期 ${it.title}" }
 }
 
@@ -1171,13 +1201,51 @@ private fun AdminScreen(state: DaysUiState, vm: DaysViewModel) {
 }
 
 @Composable
-private fun EventEditor(initial: CalendarEvent, onDismiss: () -> Unit, onSave: (CalendarEvent) -> Unit) {
+private fun EventEditor(initial: CalendarEvent, editing: Boolean, onDismiss: () -> Unit, onSave: (CalendarEvent) -> Unit) {
     var title by remember { mutableStateOf(initial.title) }
+    var date by remember { mutableStateOf(initial.date) }
+    var start by remember { mutableStateOf(initial.startTime.orEmpty()) }
+    var end by remember { mutableStateOf(initial.endTime.orEmpty()) }
+    var allDay by remember { mutableStateOf(initial.allDay) }
+    var location by remember { mutableStateOf(initial.location.orEmpty()) }
+    var note by remember { mutableStateOf(initial.note.orEmpty()) }
+    var repeat by remember { mutableStateOf(initial.repeat) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("新日程") },
-        text = { OutlinedTextField(title, { title = it }, label = { Text("标题") }) },
-        confirmButton = { Button(onClick = { onSave(initial.copy(title = title.trim())) }, enabled = title.isNotBlank()) { Text("保存") } },
+        title = { Text(if (editing) "编辑日程" else "新日程") },
+        text = {
+            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(title, { title = it }, label = { Text("标题") }, isError = title.isBlank())
+                OutlinedTextField(date, { date = it }, label = { Text("日期 YYYY-MM-DD") })
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(allDay, { allDay = it })
+                    Text("全天")
+                }
+                if (!allDay) {
+                    OutlinedTextField(start, { start = it }, label = { Text("开始 HH:MM") })
+                    OutlinedTextField(end, { end = it }, label = { Text("结束 HH:MM") })
+                }
+                OutlinedTextField(location, { location = it }, label = { Text("地点") })
+                OutlinedTextField(note, { note = it }, label = { Text("说明") })
+                OutlinedTextField(repeat, { repeat = it }, label = { Text("重复 none/daily/weekly/monthly/yearly") })
+                if (repeat != "none") Text("重复日程按整条规则保存。删除时会删掉以后的每一次。", style = MaterialTheme.typography.bodySmall)
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                if (title.isBlank() || date.isBlank()) return@Button
+                onSave(initial.copy(
+                    title = title.trim(),
+                    date = date.trim(),
+                    startTime = if (allDay) null else start.ifBlank { null },
+                    endTime = if (allDay) null else end.ifBlank { null },
+                    allDay = allDay,
+                    location = location.trim().ifBlank { null },
+                    note = note.trim().ifBlank { null },
+                    repeat = repeat.ifBlank { "none" },
+                ))
+            }, enabled = title.isNotBlank() && date.isNotBlank()) { Text("保存") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
 }

@@ -34,6 +34,8 @@ import com.yydsxwh.kemiao.days.data.model.applyOcrImport
 import com.yydsxwh.kemiao.days.data.model.dumpAppData
 import com.yydsxwh.kemiao.days.data.model.emptyData
 import com.yydsxwh.kemiao.days.data.model.fingerprint
+import com.yydsxwh.kemiao.days.data.model.insertCalendarEvent
+import com.yydsxwh.kemiao.days.data.model.replaceCalendarEvent
 import com.yydsxwh.kemiao.days.data.model.guessTermKind
 import com.yydsxwh.kemiao.days.data.model.withNewTerm
 import com.yydsxwh.kemiao.days.data.model.withoutTerm
@@ -302,10 +304,11 @@ class DaysViewModel(application: Application) : AndroidViewModel(application) {
     fun removeSelf(id: String) = commit { dropRules(withTombstones(it, listOf(id)), "self", id).copy(selfSchedules = it.selfSchedules.filter { s -> s.id != id }) }
 
     fun addEvent(item: CalendarEvent) = commit { data ->
-        val ready = item.copy(id = item.id.ifBlank { uid() }, createdAt = item.createdAt.takeIf { it > 0 } ?: nowMillis())
-        if (ready.title.isBlank() || ready.date.isBlank()) data else data.copy(calendarEvents = data.calendarEvents + ready)
+        data.copy(calendarEvents = insertCalendarEvent(data.calendarEvents, item, nowMillis()))
     }
-    fun updateEvent(item: CalendarEvent) = commit { it.copy(calendarEvents = it.calendarEvents.map { e -> if (e.id == item.id) item else e }) }
+    fun updateEvent(item: CalendarEvent) = commit { data ->
+        data.copy(calendarEvents = replaceCalendarEvent(data.calendarEvents, item, nowMillis()))
+    }
     fun removeEvent(id: String) = commit { dropRules(withTombstones(it, listOf(id)), "event", id).copy(calendarEvents = it.calendarEvents.filter { e -> e.id != id }) }
 
     fun addRecurring(item: RecurringReminder) = commit { data ->

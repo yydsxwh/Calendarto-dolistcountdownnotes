@@ -44,7 +44,11 @@ export function ReminderRulesEditor({
       const fire = new Date(start.getTime() - offset * 60000)
       if (fire.getTime() <= Date.now()) return
     }
-    if (mode === 'absolute' && !absolute) return
+    if (mode === 'absolute') {
+      const normalized = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(absolute) ? `${absolute}:00` : absolute
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(normalized)) return
+      rule.triggerAt = normalized
+    }
     store.saveReminderRule(rule)
     setAbsolute('')
   }
@@ -64,7 +68,7 @@ export function ReminderRulesEditor({
         <button className="btn tiny" type="button" onClick={() => add('relative')}>添加相对提醒</button>
       </div>
       <div className="row wrap">
-        <input className="input slim" type="datetime-local" value={absolute} onChange={(e) => setAbsolute(e.target.value)} aria-label="绝对响铃时间" />
+        <input className="input slim" type="datetime-local" step="1" value={absolute} onChange={(e) => setAbsolute(e.target.value)} aria-label="绝对响铃时间" />
         <button className="btn tiny" type="button" onClick={() => add('absolute')}>添加指定时间</button>
       </div>
       <ul className="mini-list">

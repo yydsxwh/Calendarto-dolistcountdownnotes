@@ -29,14 +29,14 @@ describe('闹钟计划', () => {
       rule({ id: 'b', triggerAt: '2026-09-25T09:58' }),
     ]
     const fires = planFires(data, new Date(2026, 8, 25, 9, 0), 2).map((item) => item.fireAt)
-    expect(fires).toEqual(['2026-09-25T09:55', '2026-09-25T09:58'])
+    expect(fires).toEqual(['2026-09-25T09:55:00', '2026-09-25T09:58:00'])
   })
 
   it('18:00 聚餐可以 17:00 响', () => {
     const data = emptyData()
     data.calendarEvents = [{ id: 'e', title: '聚餐', date: '2026-09-25', startTime: '18:00', allDay: false, color: '#2563eb', priority: 'medium', remindMinutes: 0, repeat: 'none', createdAt: 1 }]
     data.reminderRules = [rule({ id: 'c', targetType: 'event', targetId: 'e', triggerMode: 'relative', offsetMinutes: 60 })]
-    expect(planFires(data, new Date(2026, 8, 25, 12, 0), 2)[0]?.fireAt).toBe('2026-09-25T17:00')
+    expect(planFires(data, new Date(2026, 8, 25, 12, 0), 2)[0]?.fireAt).toBe('2026-09-25T17:00:00')
   })
 
   it('改时间后旧 occurrence 不再出现，完成或删除后取消', () => {
@@ -50,7 +50,7 @@ describe('闹钟计划', () => {
     data.exams[0].startTime = '09:00'
     data.reminderRules = [rule({ id: 'd2', targetType: 'exam', targetId: 'x', triggerMode: 'relative', offsetMinutes: 60, revision: 2 })]
     const next = planFires(data, new Date(2026, 8, 25, 12, 0), 2)
-    expect(next.map((item) => item.fireAt)).toEqual(['2026-09-26T08:00'])
+    expect(next.map((item) => item.fireAt)).toEqual(['2026-09-26T08:00:00'])
     data.exams = []
     expect(planFires(data, new Date(2026, 8, 25, 12, 0), 2)).toHaveLength(0)
   })
@@ -62,7 +62,19 @@ describe('闹钟计划', () => {
     expect(planFires(data, new Date(2026, 8, 21, 8, 0), 14)).toHaveLength(0)
     data.reminderRules[0].enabled = true
     const fires = planFires(data, new Date(2026, 8, 21, 8, 0), 14)
-    expect(fires.every((item) => item.fireAt.endsWith('T08:50'))).toBe(true)
+    expect(fires.every((item) => item.fireAt.endsWith('T08:50:00'))).toBe(true)
     expect(new Set(fires.map((item) => item.occurrenceKey)).size).toBe(fires.length)
+  })
+
+  it('同一事项的两个闹钟可以只差秒，旧记录没有秒时补 00', () => {
+    const data = emptyData()
+    data.todos = [{ id: 't', title: '抢票', done: false, dueDate: '2026-09-25', dueTime: '10:00', priority: 'high', remindMinutes: 0, createdAt: 1 }]
+    data.reminderRules = [
+      rule({ id: 's1', triggerAt: '2026-09-25T09:55:30' }),
+      rule({ id: 's2', triggerAt: '2026-09-25T09:55:45' }),
+      rule({ id: 's3', triggerAt: '2026-09-25T09:55' }),
+    ]
+    const fires = planFires(data, new Date(2026, 8, 25, 9, 0), 2).map((item) => item.fireAt)
+    expect(fires).toEqual(['2026-09-25T09:55:30', '2026-09-25T09:55:45', '2026-09-25T09:55:00'])
   })
 })

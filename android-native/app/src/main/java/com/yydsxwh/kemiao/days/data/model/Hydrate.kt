@@ -119,7 +119,7 @@ fun mergeAppData(preferred: AppData, other: AppData): AppData {
             courses = rejectTombstoned(mergeByIdTyped(preferred.courses, other.courses, { it.id }, { it.createdAt }), tombstones, { it.id }, { it.createdAt }),
             exams = rejectTombstoned(mergeByIdTyped(preferred.exams, other.exams, { it.id }, { it.createdAt }), tombstones, { it.id }, { it.createdAt }),
             selfSchedules = rejectTombstoned(mergeByIdTyped(preferred.selfSchedules, other.selfSchedules, { it.id }, { it.createdAt }), tombstones, { it.id }, { it.createdAt }),
-            calendarEvents = rejectTombstoned(mergeByIdTyped(preferred.calendarEvents, other.calendarEvents, { it.id }, { it.createdAt }), tombstones, { it.id }, { it.createdAt }),
+            calendarEvents = rejectTombstoned(mergeByIdTyped(preferred.calendarEvents, other.calendarEvents, { it.id }, { maxOf(it.updatedAt, it.createdAt) }), tombstones, { it.id }, { maxOf(it.updatedAt, it.createdAt) }),
             recurringReminders = rejectTombstoned(mergeByIdTyped(preferred.recurringReminders, other.recurringReminders, { it.id }, ::reminderStamp), tombstones, { it.id }, ::reminderStamp),
             reminderRules = rejectTombstoned(mergeByIdTyped(preferred.reminderRules, other.reminderRules, { it.id }, { it.updatedAt }), tombstones, { it.id }, { it.updatedAt }),
             holidayFavorites = rejectTombstoned(mergeByIdTyped(preferred.holidayFavorites, other.holidayFavorites, { it.id }, { it.createdAt }), tombstones, { it.id }, { it.createdAt }),

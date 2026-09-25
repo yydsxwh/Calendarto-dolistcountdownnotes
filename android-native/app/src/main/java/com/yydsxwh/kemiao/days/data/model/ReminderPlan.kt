@@ -13,14 +13,15 @@ data class FirePlan(
     val delivery: String,
 )
 
-private val clock = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm")
+private val clock = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss")
 
 fun parseLocalDateTime(value: String?): LocalDateTime? {
     if (value.isNullOrBlank()) return null
     val text = value.replace(' ', 'T')
     return runCatching {
         if (text.length == 10) LocalDateTime.of(LocalDate.parse(text), LocalTime.of(9, 0))
-        else LocalDateTime.parse(text.take(16))
+        else if (text.length == 16) LocalDateTime.parse("${text.take(16)}:00")
+        else LocalDateTime.parse(text.take(19))
     }.getOrNull()
 }
 
@@ -32,7 +33,7 @@ fun planFires(data: AppData, holidays: List<HolidayOccurrence>, now: LocalDateTi
         for (start in startInstants(data, holidays, rule, now.minusDays(1), until)) {
             val fire = if (rule.triggerMode == "absolute") parseLocalDateTime(rule.triggerAt) else start.at.minusMinutes((rule.offsetMinutes ?: 0).toLong())
             if (fire == null || !fire.isAfter(now) || fire.isAfter(until)) continue
-            val key = "${rule.id}:${start.key}:${rule.revision}"
+            val key = "${rule.id}:${start.key}:${formatFire(fire)}:${rule.revision}"
             if (plans.any { it.occurrenceKey == key }) continue
             plans += FirePlan(rule.id, key, fire, start.title, rule.delivery)
         }

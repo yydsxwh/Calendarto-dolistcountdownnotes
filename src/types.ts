@@ -9,7 +9,7 @@ export interface TimetableViewSettings { weekStartsOn: 1 | 7; showOffWeekCourses
 export interface Course { id: string; name: string; weekday: number; startTime: string; endTime: string; location?: string; teacher?: string; weeks?: string; color: string; remindMinutes: number; createdAt: number; termId?: string; note?: string }
 export interface Exam { id: string; name: string; kind: ExamKind; date: string; startTime: string; endTime?: string; location?: string; seat?: string; remindMinutes: number; createdAt: number }
 export interface SelfScheduleItem { id: string; title: string; weekday: number; startTime: string; endTime: string; color: string; note?: string; remindMinutes: number; priority: Priority; createdAt: number }
-export interface CalendarEvent { id: string; title: string; date: string; startTime?: string; endTime?: string; allDay: boolean; location?: string; note?: string; color: string; priority: Priority; remindMinutes: number; repeat?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'; createdAt: number }
+export interface CalendarEvent { id: string; title: string; date: string; startTime?: string; endTime?: string; allDay: boolean; location?: string; note?: string; color: string; priority: Priority; remindMinutes: number; repeat?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'; createdAt: number; updatedAt?: number; revision?: number }
 /** 已实现：天 / 周 / 月 / 年。不要把规则写死成只有「每年」。 */
 export type RecurrenceUnit = 'day' | 'week' | 'month' | 'year'
 /**

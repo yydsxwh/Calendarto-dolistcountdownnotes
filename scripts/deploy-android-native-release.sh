@@ -71,6 +71,7 @@ cert_sha="$(grep 'certificate SHA-256 digest:' /tmp/kemiao-apk-certs.txt | head 
 python3 - "$local_sha" "$local_size" "$version_name" "$version_code" "$stamp" "$cert_sha" << 'PY' > /tmp/kemiao-days-release.json
 import json, sys
 sha, size, version, code, stamp, cert = sys.argv[1:]
+filename = f"kemiao-days-{version}.apk"
 json.dump({
   "versionName": version,
   "versionCode": int(code),
@@ -80,15 +81,27 @@ json.dump({
   "certSha256": cert,
   "packageName": "com.yydsxwh.kemiao.days",
   "source": "android-native",
+  "file": filename,
 }, sys.stdout, ensure_ascii=False)
 print()
 PY
 scp -i "$KEY" -o IdentitiesOnly=yes /tmp/kemiao-days-release.json "$HOST:$DEST/kemiao-days-release.json.uploading"
+versioned="$DEST/kemiao-days-${version_name}.apk"
 ssh -i "$KEY" -o IdentitiesOnly=yes "$HOST" "set -e
   if [[ -f '$remote_final' ]]; then cp -a '$remote_final' '$remote_final.previous'; fi
+  if [[ -f '$versioned' ]]; then
+    existing=\$(sha256sum '$versioned' | awk '{print \$1}')
+    if [[ \"\$existing\" != '$local_sha' ]]; then
+      echo '版本化文件已存在且内容不同，拒绝覆盖' >&2
+      exit 1
+    fi
+  else
+    cp -a '$remote_tmp' '$versioned'
+  fi
+  chmod 644 '$versioned'
   mv -f '$DEST/kemiao-days-release.json.uploading' '$DEST/kemiao-days-release.json'
   mv -f '$remote_tmp' '$remote_final'
   chmod 644 '$remote_final' '$DEST/kemiao-days-release.json'
-  sha256sum '$remote_final'
+  sha256sum '$remote_final' '$versioned'
 "
 echo "published_sha256=$local_sha"

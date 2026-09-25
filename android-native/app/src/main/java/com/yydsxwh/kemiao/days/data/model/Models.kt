@@ -85,6 +85,8 @@ val DaysJson: Json = Json {
     val remindMinutes: Int,
     val repeat: String = "none",
     val createdAt: Long,
+    val updatedAt: Long = 0,
+    val revision: Int = 1,
 )
 
 @Serializable data class RecurrenceRule(

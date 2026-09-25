@@ -669,6 +669,14 @@ select.input {
 
 .cal-cell.is-selected .cal-holiday { color: white; }
 
+.cal-more {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--brand, #2563eb);
+}
+
+.cal-cell.is-selected .cal-more { color: white; }
+
 .day-panel h3 {
   margin-top: 0;
 }

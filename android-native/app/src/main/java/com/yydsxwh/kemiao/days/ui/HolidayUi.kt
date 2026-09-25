@@ -11,7 +11,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +31,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.yydsxwh.kemiao.days.data.model.parseLocalDateTime
+import java.time.LocalDate
+import java.time.LocalDateTime
 import com.yydsxwh.kemiao.days.app.DaysUiState
 import com.yydsxwh.kemiao.days.app.DaysViewModel
 import com.yydsxwh.kemiao.days.data.local.HolidayCache
@@ -39,7 +45,6 @@ import com.yydsxwh.kemiao.days.data.model.holidaysOn
 import com.yydsxwh.kemiao.days.data.model.todayIso
 import com.yydsxwh.kemiao.days.data.model.uid
 import com.yydsxwh.kemiao.days.notify.ReminderScheduler
-import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 @Composable
@@ -139,22 +144,50 @@ fun ReminderRulesButton(state: DaysUiState, vm: DaysViewModel, targetType: Strin
     TextButton(onClick = { open = true }) { Text("提醒与闹钟") }
     if (!open) return
     val rules = state.data.reminderRules.filter { it.targetType == targetType && it.targetId == targetId }
-    var absolute by remember { mutableStateOf("") }
+    val opening = remember {
+        val saved = rules.lastOrNull { it.triggerMode == "absolute" }?.triggerAt?.let { parseLocalDateTime(it) }
+        val seed = saved ?: LocalDateTime.of(LocalDate.now(), nextMinute())
+        seed
+    }
+    var date by remember { mutableStateOf(opening.toLocalDate().toString()) }
+    var hour by remember { mutableStateOf(opening.hour) }
+    var minute by remember { mutableStateOf(opening.minute) }
+    var second by remember { mutableStateOf(opening.second) }
+    fun stamp(): String? {
+        if (!Regex("""\d{4}-\d{2}-\d{2}""").matches(date)) return null
+        return "$date" + "T" + "%02d:%02d:%02d".format(hour, minute, second)
+    }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = { open = false },
         title = { Text("提醒与闹钟") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(startLabel, style = MaterialTheme.typography.bodySmall)
                 Text("精确响铃需要本机授权。未授权时会降级成普通提醒，不会假装已经设成精确闹钟。", style = MaterialTheme.typography.bodySmall)
                 AlarmPermissionNote()
-                OutlinedTextField(absolute, { absolute = it }, label = { Text("指定时间 YYYY-MM-DDTHH:MM") })
+                OutlinedTextField(date, { date = it }, label = { Text("日期 YYYY-MM-DD") })
+                SecondClockWheels(hour, minute, second) { h, m, s -> hour = h; minute = m; second = s }
+                Text("选定 ${"%02d:%02d:%02d".format(hour, minute, second)}", style = MaterialTheme.typography.bodySmall)
+                Row {
+                    TextButton(onClick = {
+                        val now = LocalDateTime.now()
+                        date = now.toLocalDate().toString()
+                        hour = now.hour
+                        minute = now.minute
+                        second = now.second
+                    }) { Text("现在") }
+                    TextButton(onClick = {
+                        val next = LocalDateTime.of(LocalDate.now(), nextMinute())
+                        date = next.toLocalDate().toString()
+                        hour = next.hour
+                        minute = next.minute
+                        second = 0
+                    }) { Text("清除") }
+                }
                 Button(onClick = {
-                    if (absolute.length >= 16) {
-                        vm.saveReminderRule(ReminderRule(uid(), targetType, targetId, "alarm", "absolute", absolute.take(16), enabled = true, createdAt = System.currentTimeMillis()))
-                        absolute = ""
-                    }
-                }) { Text("添加闹钟") }
+                    val triggerAt = stamp() ?: return@Button
+                    vm.saveReminderRule(ReminderRule(uid(), targetType, targetId, "alarm", "absolute", triggerAt, enabled = true, createdAt = System.currentTimeMillis()))
+                }) { Text("确定") }
                 listOf(0 to "准时", 5 to "提前 5 分钟", 10 to "提前 10 分钟", 60 to "提前 1 小时", 1440 to "提前 1 天").forEach { (minutes, label) ->
                     TextButton(onClick = {
                         vm.saveReminderRule(ReminderRule(uid(), targetType, targetId, "alarm", "relative", offsetMinutes = minutes, enabled = true, createdAt = System.currentTimeMillis()))
@@ -170,9 +203,9 @@ fun ReminderRulesButton(state: DaysUiState, vm: DaysViewModel, targetType: Strin
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { open = false }) { Text("完成") } },
+        confirmButton = { TextButton(onClick = { open = false }) { Text("取消") } },
     )
 }
 
 fun previewFire(start: LocalDateTime, offsetMinutes: Int): String =
-    start.minusMinutes(offsetMinutes.toLong()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
+    start.minusMinutes(offsetMinutes.toLong()).format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))

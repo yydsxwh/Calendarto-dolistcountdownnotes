@@ -101,3 +101,16 @@ private fun startInstants(data: AppData, holidays: List<HolidayOccurrence>, rule
 }
 
 fun formatFire(at: LocalDateTime): String = at.format(clock)
+
+/** 日期必须能解析，时分秒各自落在合法范围。失败返回 null，调用方要给出可见错误。 */
+fun absoluteTriggerAt(date: String, hour: Int, minute: Int, second: Int): String? {
+    if (hour !in 0..23 || minute !in 0..59 || second !in 0..59) return null
+    val parsed = runCatching { LocalDate.parse(date.trim()) }.getOrNull() ?: return null
+    return "%sT%02d:%02d:%02d".format(parsed, hour, minute, second)
+}
+
+fun upsertReminderRule(rules: List<ReminderRule>, rule: ReminderRule, now: Long): List<ReminderRule> {
+    val existing = rules.find { it.id == rule.id }
+    val next = rule.copy(updatedAt = now, revision = (existing?.revision ?: 0) + 1, enabled = rule.enabled)
+    return if (existing == null) rules + next else rules.map { if (it.id == rule.id) next else it }
+}

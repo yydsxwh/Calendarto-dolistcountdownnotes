@@ -13,8 +13,8 @@ android {
         applicationId = "com.yydsxwh.kemiao.days"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
-        versionName = "2.3.2"
+        versionCode = 16
+        versionName = "2.3.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "DAYS_API_ORIGIN", "\"https://www.yydsxwh.com\"")
@@ -70,6 +70,10 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
         unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            it.maxHeapSize = "2048m"
+            it.maxParallelForks = 1
+        }
     }
     lint {
         abortOnError = true

@@ -15,13 +15,18 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.yydsxwh.kemiao.days.data.model.absoluteTriggerAt
 import com.yydsxwh.kemiao.days.data.model.parseLocalDateTime
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -141,70 +147,142 @@ fun AlarmPermissionNote() {
 @Composable
 fun ReminderRulesButton(state: DaysUiState, vm: DaysViewModel, targetType: String, targetId: String, startLabel: String) {
     var open by remember { mutableStateOf(false) }
-    TextButton(onClick = { open = true }) { Text("提醒与闹钟") }
+    TextButton(onClick = { open = true }, modifier = Modifier.heightIn(min = 48.dp)) { Text("提醒与闹钟") }
     if (!open) return
     val rules = state.data.reminderRules.filter { it.targetType == targetType && it.targetId == targetId }
     val opening = remember {
         val saved = rules.lastOrNull { it.triggerMode == "absolute" }?.triggerAt?.let { parseLocalDateTime(it) }
-        val seed = saved ?: LocalDateTime.of(LocalDate.now(), nextMinute())
-        seed
+        saved ?: LocalDateTime.of(LocalDate.now(), nextMinute())
     }
     var date by remember { mutableStateOf(opening.toLocalDate().toString()) }
     var hour by remember { mutableStateOf(opening.hour) }
     var minute by remember { mutableStateOf(opening.minute) }
     var second by remember { mutableStateOf(opening.second) }
-    fun stamp(): String? {
-        if (!Regex("""\d{4}-\d{2}-\d{2}""").matches(date)) return null
-        return "$date" + "T" + "%02d:%02d:%02d".format(hour, minute, second)
+    var error by remember { mutableStateOf<String?>(null) }
+    var saving by remember { mutableStateOf(false) }
+    val draftId = remember { uid() }
+    ReminderEditorDialog(
+        startLabel = startLabel,
+        date = date,
+        hour = hour,
+        minute = minute,
+        second = second,
+        error = error,
+        rules = rules,
+        onDate = { date = it; error = null },
+        onTime = { h, m, s -> hour = h; minute = m; second = s; error = null },
+        onNow = {
+            val now = LocalDateTime.now()
+            date = now.toLocalDate().toString()
+            hour = now.hour
+            minute = now.minute
+            second = now.second
+            error = null
+        },
+        onClear = {
+            val next = LocalDateTime.of(LocalDate.now(), nextMinute())
+            date = next.toLocalDate().toString()
+            hour = next.hour
+            minute = next.minute
+            second = 0
+            error = null
+        },
+        onConfirm = {
+            if (saving) return@ReminderEditorDialog
+            val triggerAt = absoluteTriggerAt(date, hour, minute, second)
+            if (triggerAt == null) {
+                error = "日期或时间不合法。日期用 YYYY-MM-DD，时间要在 00:00:00 到 23:59:59。"
+                return@ReminderEditorDialog
+            }
+            saving = true
+            vm.saveReminderRule(ReminderRule(draftId, targetType, targetId, "alarm", "absolute", triggerAt, enabled = true, createdAt = System.currentTimeMillis()))
+            open = false
+        },
+        onRelative = { minutes ->
+            vm.saveReminderRule(ReminderRule(uid(), targetType, targetId, "alarm", "relative", offsetMinutes = minutes, enabled = true, createdAt = System.currentTimeMillis()))
+        },
+        onToggle = { rule -> vm.saveReminderRule(rule.copy(enabled = !rule.enabled)) },
+        onDelete = { vm.removeReminderRule(it) },
+        onDismiss = { open = false },
+    )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun ReminderEditorDialog(
+    startLabel: String,
+    date: String,
+    hour: Int,
+    minute: Int,
+    second: Int,
+    error: String?,
+    rules: List<ReminderRule>,
+    onDate: (String) -> Unit,
+    onTime: (Int, Int, Int) -> Unit,
+    onNow: () -> Unit,
+    onClear: () -> Unit,
+    onConfirm: () -> Unit,
+    onRelative: (Int) -> Unit,
+    onToggle: (ReminderRule) -> Unit,
+    onDelete: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        ReminderEditorBody(startLabel, date, hour, minute, second, error, rules, onDate, onTime, onNow, onClear, onConfirm, onRelative, onToggle, onDelete, onDismiss)
     }
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = { open = false },
-        title = { Text("提醒与闹钟") },
-        text = {
-            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(startLabel, style = MaterialTheme.typography.bodySmall)
-                Text("精确响铃需要本机授权。未授权时会降级成普通提醒，不会假装已经设成精确闹钟。", style = MaterialTheme.typography.bodySmall)
-                AlarmPermissionNote()
-                OutlinedTextField(date, { date = it }, label = { Text("日期 YYYY-MM-DD") })
-                SecondClockWheels(hour, minute, second) { h, m, s -> hour = h; minute = m; second = s }
-                Text("选定 ${"%02d:%02d:%02d".format(hour, minute, second)}", style = MaterialTheme.typography.bodySmall)
-                Row {
-                    TextButton(onClick = {
-                        val now = LocalDateTime.now()
-                        date = now.toLocalDate().toString()
-                        hour = now.hour
-                        minute = now.minute
-                        second = now.second
-                    }) { Text("现在") }
-                    TextButton(onClick = {
-                        val next = LocalDateTime.of(LocalDate.now(), nextMinute())
-                        date = next.toLocalDate().toString()
-                        hour = next.hour
-                        minute = next.minute
-                        second = 0
-                    }) { Text("清除") }
-                }
-                Button(onClick = {
-                    val triggerAt = stamp() ?: return@Button
-                    vm.saveReminderRule(ReminderRule(uid(), targetType, targetId, "alarm", "absolute", triggerAt, enabled = true, createdAt = System.currentTimeMillis()))
-                }) { Text("确定") }
-                listOf(0 to "准时", 5 to "提前 5 分钟", 10 to "提前 10 分钟", 60 to "提前 1 小时", 1440 to "提前 1 天").forEach { (minutes, label) ->
-                    TextButton(onClick = {
-                        vm.saveReminderRule(ReminderRule(uid(), targetType, targetId, "alarm", "relative", offsetMinutes = minutes, enabled = true, createdAt = System.currentTimeMillis()))
-                    }) { Text(label) }
-                }
-                rules.forEach { rule ->
-                    val whenLabel = if (rule.triggerMode == "absolute") rule.triggerAt.orEmpty() else "提前 ${rule.offsetMinutes ?: 0} 分钟"
-                    Text("${if (rule.delivery == "alarm") "闹钟" else "通知"} · $whenLabel · ${if (rule.enabled) "开" else "关"}")
-                    Row {
-                        TextButton(onClick = { vm.saveReminderRule(rule.copy(enabled = !rule.enabled)) }) { Text(if (rule.enabled) "关闭" else "开启") }
-                        TextButton(onClick = { vm.removeReminderRule(rule.id) }) { Text("删除") }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun ReminderEditorBody(
+    startLabel: String,
+    date: String,
+    hour: Int,
+    minute: Int,
+    second: Int,
+    error: String?,
+    rules: List<ReminderRule>,
+    onDate: (String) -> Unit,
+    onTime: (Int, Int, Int) -> Unit,
+    onNow: () -> Unit,
+    onClear: () -> Unit,
+    onConfirm: () -> Unit,
+    onRelative: (Int) -> Unit,
+    onToggle: (ReminderRule) -> Unit,
+    onDelete: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.fillMaxWidth().heightIn(max = 640.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("提醒与闹钟", style = MaterialTheme.typography.titleLarge)
+                Column(Modifier.heightIn(max = 180.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(startLabel, style = MaterialTheme.typography.bodySmall)
+                    Text("精确响铃需要本机授权。未授权时会降级成普通提醒，不会假装已经设成精确闹钟。", style = MaterialTheme.typography.bodySmall)
+                    AlarmPermissionNote()
+                    OutlinedTextField(date, onDate, label = { Text("日期 YYYY-MM-DD") }, modifier = Modifier.fillMaxWidth())
+                    listOf(0 to "准时", 5 to "提前 5 分钟", 10 to "提前 10 分钟", 60 to "提前 1 小时", 1440 to "提前 1 天").forEach { (minutes, label) ->
+                        TextButton(onClick = { onRelative(minutes) }, modifier = Modifier.heightIn(min = 48.dp)) { Text(label) }
+                    }
+                    rules.forEach { rule ->
+                        val whenLabel = if (rule.triggerMode == "absolute") rule.triggerAt.orEmpty() else "提前 ${rule.offsetMinutes ?: 0} 分钟"
+                        Text("${if (rule.delivery == "alarm") "闹钟" else "通知"} · $whenLabel · ${if (rule.enabled) "开" else "关"}")
+                        Row {
+                            TextButton(onClick = { onToggle(rule) }, modifier = Modifier.heightIn(min = 48.dp)) { Text(if (rule.enabled) "关闭" else "开启") }
+                            TextButton(onClick = { onDelete(rule.id) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("删除") }
+                        }
                     }
                 }
+                SecondClockWheels(hour, minute, second, onTime)
+                Text("选定 %02d:%02d:%02d".format(hour, minute, second), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.testTag("alarm-selected"))
+                if (!error.isNullOrBlank()) Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("alarm-error"))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onNow, modifier = Modifier.heightIn(min = 48.dp).testTag("alarm-now")) { Text("现在") }
+                    TextButton(onClick = onClear, modifier = Modifier.heightIn(min = 48.dp).testTag("alarm-clear")) { Text("清除") }
+                    Button(onClick = onConfirm, modifier = Modifier.heightIn(min = 48.dp).testTag("alarm-confirm")) { Text("确定") }
+                    TextButton(onClick = onDismiss, modifier = Modifier.heightIn(min = 48.dp).testTag("alarm-cancel")) { Text("取消") }
+                }
             }
-        },
-        confirmButton = { TextButton(onClick = { open = false }) { Text("取消") } },
-    )
+        }
 }
 
 fun previewFire(start: LocalDateTime, offsetMinutes: Int): String =

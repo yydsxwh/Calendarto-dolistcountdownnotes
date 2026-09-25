@@ -36,6 +36,7 @@ import com.yydsxwh.kemiao.days.data.model.emptyData
 import com.yydsxwh.kemiao.days.data.model.fingerprint
 import com.yydsxwh.kemiao.days.data.model.insertCalendarEvent
 import com.yydsxwh.kemiao.days.data.model.replaceCalendarEvent
+import com.yydsxwh.kemiao.days.data.model.upsertReminderRule
 import com.yydsxwh.kemiao.days.data.model.guessTermKind
 import com.yydsxwh.kemiao.days.data.model.withNewTerm
 import com.yydsxwh.kemiao.days.data.model.withoutTerm
@@ -321,9 +322,7 @@ class DaysViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateReminders(patch: ReminderSettings) = commit { it.copy(reminderSettings = patch) }
     fun saveReminderRule(rule: ReminderRule) = commit { data ->
-        val existing = data.reminderRules.find { it.id == rule.id }
-        val next = rule.copy(updatedAt = System.currentTimeMillis(), revision = (existing?.revision ?: 0) + 1)
-        data.copy(reminderRules = if (existing == null) data.reminderRules + next else data.reminderRules.map { if (it.id == rule.id) next else it })
+        data.copy(reminderRules = upsertReminderRule(data.reminderRules, rule, System.currentTimeMillis()))
     }
     fun removeReminderRule(id: String) = commit { withTombstones(it, listOf(id)).copy(reminderRules = it.reminderRules.filter { rule -> rule.id != id }) }
     fun updateHolidaySettings(patch: HolidaySettings) = commit { it.copy(holidaySettings = patch.copy(updatedAt = System.currentTimeMillis())) }

@@ -7,6 +7,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
@@ -369,7 +371,10 @@ private fun CalendarScreen(state: DaysUiState, vm: DaysViewModel) {
     var pendingDelete by remember { mutableStateOf<CalendarEvent?>(null) }
     val days = daysInMonth(cursor.year, cursor.monthValue)
     val firstWeekday = ((cursor.dayOfWeek.value) % 7)
-    Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).padding(bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = { cursor = cursor.minusMonths(1) }) { Text("上月") }
             Text("${cursor.year} 年 ${cursor.monthValue} 月", fontWeight = FontWeight.Bold)
@@ -383,7 +388,7 @@ private fun CalendarScreen(state: DaysUiState, vm: DaysViewModel) {
                     val iso = day?.let { toIsoDate(cursor.withDayOfMonth(it)) }
                     val marked = iso != null && hasItems(state, iso)
                     Box(
-                        Modifier.weight(1f).height(56.dp).clip(CircleShape).clickable(enabled = iso != null) { if (iso != null) selected = iso }.background(if (iso == selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent),
+                        Modifier.weight(1f).heightIn(min = 56.dp).clip(CircleShape).clickable(enabled = iso != null) { if (iso != null) selected = iso }.background(if (iso == selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) else Color.Transparent),
                         contentAlignment = Alignment.Center,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -406,16 +411,18 @@ private fun CalendarScreen(state: DaysUiState, vm: DaysViewModel) {
         Text("日程", fontWeight = FontWeight.SemiBold)
         if (events.isEmpty()) Text("这一天还没有日程", color = MaterialTheme.colorScheme.onSurfaceVariant)
         events.forEach { event ->
-            Card(Modifier.fillMaxWidth().clickable { editing = event }) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Card(Modifier.fillMaxWidth().testTag("event-card-${event.id}")) {
+                Column(Modifier.padding(horizontal = 12.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(event.title, fontWeight = FontWeight.Medium)
                     Text(listOfNotNull(if (event.allDay) "全天" else event.startTime, event.endTime?.let { "到 $it" }, event.location, event.note).joinToString(" · "), style = MaterialTheme.typography.bodySmall)
                     if (event.repeat != "none") Text("重复日程。删除会去掉整条规则，不能只删这一天。", style = MaterialTheme.typography.bodySmall)
-                    Row {
-                        TextButton(onClick = { editing = event }) { Text("编辑") }
-                        TextButton(onClick = { pendingDelete = event }) { Text("删除") }
-                        ReminderRulesButton(state, vm, "event", event.id, "${event.title} ${event.date} ${event.startTime ?: "全天"}")
-                    }
+                    EventActionRow(
+                        onEdit = { editing = event },
+                        onDelete = { pendingDelete = event },
+                        editTag = "event-edit-${event.id}",
+                        deleteTag = "event-delete-${event.id}",
+                        alarm = { ReminderRulesButton(state, vm, "event", event.id, "${event.title} ${event.date} ${event.startTime ?: "全天"}") },
+                    )
                 }
             }
         }
@@ -472,7 +479,7 @@ private fun TodosScreen(state: DaysUiState, vm: DaysViewModel) {
                 }
             }
             if (items.isEmpty()) EmptyState("还没有待办", "点右下角加上今天要做的事")
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 12.dp)) {
+            LazyColumn(contentPadding = PaddingValues(top = 12.dp, bottom = 88.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(items, key = { it.id }) { todo ->
                     Card(Modifier.fillMaxWidth().clickable { editing = todo }) {
                         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1197,6 +1204,26 @@ private fun AdminScreen(state: DaysUiState, vm: DaysViewModel) {
         Button(onClick = { vm.testAccount() }) { Text("测试 Account") }
         Button(onClick = { vm.testPlatform() }) { Text("测试 Platform") }
         Button(onClick = { vm.loadAdmin() }) { Text("刷新配置") }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun EventActionRow(
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    editTag: String,
+    deleteTag: String,
+    alarm: @Composable () -> Unit,
+) {
+    FlowRow(
+        Modifier.fillMaxWidth().padding(bottom = 4.dp).testTag("event-actions"),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        TextButton(onClick = onEdit, modifier = Modifier.heightIn(min = 48.dp).testTag(editTag)) { Text("编辑") }
+        TextButton(onClick = onDelete, modifier = Modifier.heightIn(min = 48.dp).testTag(deleteTag)) { Text("删除") }
+        Box(Modifier.heightIn(min = 48.dp)) { alarm() }
     }
 }
 

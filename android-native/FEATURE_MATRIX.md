@@ -15,6 +15,6 @@
 | 提醒 | 页签打开时 | AlarmManager | `reminderSettings` |
 | 下载 | `/products/days/` | 正式包只来自 `android-native` release | 版本信息在 `kemiao-days-release.json` |
 
-正式包 `versionName` 2.3.2、`versionCode` 15，包名 `com.yydsxwh.kemiao.days`，启动器名「颗秒日事」。Debug 包名带 `.debug`，名称是「颗秒日事调试」，不上传。没有 `website` 构建类型，Release 缺少正式 keystore 环境变量时直接失败。
+正式包 `versionName` 2.3.3、`versionCode` 16，包名 `com.yydsxwh.kemiao.days`，启动器名「颗秒日事」。Debug 包名带 `.debug`，名称是「颗秒日事调试」，不上传。没有 `website` 构建类型，Release 缺少正式 keystore 环境变量时直接失败。
 
 布局测试用 Robolectric 断言星期栏和最后一节课的区域不压住底栏，覆盖 360×780、412×915、480×1040 dp、横屏、130% 字体和深色。这不是 Galaxy S25 Ultra 真机结果。

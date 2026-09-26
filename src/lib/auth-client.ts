@@ -22,7 +22,7 @@ export async function toSessionUser(): Promise<SessionUser | null> {
 export const rishiAuthClient: AuthClient = {
   getSession: toSessionUser,
   async getAuthorizeUrl(input) {
-    if (isNativeApp()) return 'https://www.yydsxwh.com/api/days/auth/login?native=1'
+    if (isNativeApp()) return daysApiUrl('/api/days/auth/login?native=1')
     return daysApiUrl(`/api/days/auth/login?returnTo=${encodeURIComponent(input.returnTo)}`)
   },
   async signOut(input) {

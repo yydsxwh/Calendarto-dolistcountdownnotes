@@ -1,20 +1,13 @@
 import type { Note } from '../types'
+import { browserHttpOrigin, configuredSiteOrigin } from './public-env'
 
 /**
- * 便签和笔记是同一个东西。这里把一条便签翻译成主站「网页文档」认识的 JSON，
- * 于是同一条内容既能在日事里速记，也能在文档里继续写、另存成 Word 给 WPS 打开。
- *
- * 两个接口都由主站提供，且与 /products/days/ 同源：
- *   POST /api/docs/export  →  .docx（不需要登录）
- *   POST /api/docs         →  新建文档，返回 { id }（需要登录）
+ * 便签和笔记是同一个东西。这里把一条便签翻译成主站「网页文档」认识的 JSON。
+ * 网页文档是可选能力：失败、超时或主站不可用都不能拖住日事本身。
  */
 
-const SITE_ORIGIN = 'https://www.yydsxwh.com'
-
-/** 网页文档是主站上的可选能力。超时后只失败这一次导出，不拖住日事本身。 */
 const DOCS_REQUEST_TIMEOUT_MS = 20_000
 
-/** 只用文档编辑器允许的节点类型：doc / heading / paragraph / text。 */
 type DocsNode = {
   type: string
   attrs?: Record<string, unknown>
@@ -35,7 +28,6 @@ export function noteToDocsDocument(note: Pick<Note, 'title' | 'body'>): DocsDocu
   const title = noteTitle(note)
   const paragraphs = note.body.split('\n').map<DocsNode>((line) => {
     const text = line.trim()
-    // 文档的 text 节点不允许空字符串，空行就给一个没有 content 的段落。
     return text ? { type: 'paragraph', content: [{ type: 'text', text }] } : { type: 'paragraph' }
   })
   return {
@@ -51,14 +43,15 @@ export function noteToDocsDocument(note: Pick<Note, 'title' | 'body'>): DocsDocu
 }
 
 /**
- * 原生壳（Capacitor / Electron）里页面不是从 www.yydsxwh.com 提供的，
- * 相对路径会落到 file:// 上，所以那种情况下必须补全主站域名。
+ * Web 使用当前页面 origin；原生壳必须通过构建变量提供站点 origin。
+ * 不再把某一台服务器或旧域名写死进客户端源码。
  */
 export function siteApiUrl(path: string): string {
-  if (typeof window === 'undefined') return `${SITE_ORIGIN}${path}`
-  const { protocol, origin } = window.location
-  const isWeb = protocol === 'http:' || protocol === 'https:'
-  return isWeb ? `${origin}${path}` : `${SITE_ORIGIN}${path}`
+  const web = browserHttpOrigin()
+  if (web) return `${web}${path}`
+  const site = configuredSiteOrigin()
+  if (!site) throw new NoteDocError('网页文档地址未配置，便签仍保存在日事里')
+  return `${site}${path}`
 }
 
 export class NoteDocError extends Error {}
@@ -78,7 +71,6 @@ async function postDocs(path: string, body: unknown, credentials: RequestCredent
   }
 }
 
-/** 另存为 .docx。主站直接返回 Word 2007+ 文件，WPS / Word / Pages 都能打开。 */
 export async function downloadNoteAsWord(note: Pick<Note, 'title' | 'body'>): Promise<void> {
   const payload = noteToDocsDocument(note)
   const response = await postDocs('/api/docs/export', payload, 'same-origin')
@@ -93,7 +85,6 @@ export async function downloadNoteAsWord(note: Pick<Note, 'title' | 'body'>): Pr
   URL.revokeObjectURL(url)
 }
 
-/** 把便签送进网页文档继续编辑；需要主站登录态。返回新文档地址。 */
 export async function openNoteInDocs(note: Pick<Note, 'title' | 'body'>): Promise<string> {
   const response = await postDocs('/api/docs', noteToDocsDocument(note), 'include')
   if (response.status === 401) throw new NoteDocError('请先登录统一账号，才能存进网页文档')

@@ -4,8 +4,8 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 KEY="${DEPLOY_SSH_KEY_FILE:-$HOME/.ssh/yyds_aliyun}"
-HOST="${DEPLOY_SSH_HOST:-admin@47.242.157.181}"
-REMOTE_DIR="${DEPLOY_BFF_DIR:-/opt/kemiao-days-sync}"
+HOST="${DEPLOY_SSH_HOST:?set DEPLOY_SSH_HOST}"
+REMOTE_DIR="${DEPLOY_BFF_DIR:?set DEPLOY_BFF_DIR}"
 
 if [[ ! -f "$KEY" ]]; then
   echo "Missing SSH key at $KEY. Put the deploy key there (chmod 600). Do not paste it into chat." >&2
@@ -39,4 +39,6 @@ ssh -i "$KEY" -o IdentitiesOnly=yes "$HOST" "set -e
 "
 
 echo "Published BFF $HOST:$REMOTE_DIR/index.mjs"
-echo "Health: curl -sS https://www.yydsxwh.com/api/days/health"
+if [[ -n "${RISHI_PUBLIC_ORIGIN:-}" ]]; then
+  echo "Health: curl -sS ${RISHI_PUBLIC_ORIGIN%/}/api/days/health"
+fi

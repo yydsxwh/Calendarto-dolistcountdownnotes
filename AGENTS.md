@@ -113,19 +113,16 @@ Standard scripts are defined in `package.json`:
 - Live URLs: `https://www.yydsxwh.com/products` (软件产品 listing with
   网页版 + Android 下载) and `https://www.yydsxwh.com/products/days/`
   (app). Android package: `/products/days/kemiao-days.apk`. Static files
-  live on the Hong Kong box at
-  `/var/www/yyds-course-platform/public/products/days/`. nginx
-  `location ^~ /products/days/` serves them; the Next app still owns
-  `/products`. Listing card lives in Andyyyds
+  are published to `DAYS_WEB_ROOT`. nginx `location ^~ /products/days/`
+  serves them; the Next app still owns `/products`. Listing card lives in Andyyyds
   `packages/shared/src/software-products.ts` (`kemiao-days` + `actions`).
   `scripts/deploy-days.sh` also uploads `kemiao-days.apk` when a local
   debug APK exists.
-- SSH: `admin@47.242.157.181` with key file `~/.ssh/yyds_aliyun` (Aliyun
-  console key name may show as `cursor`; key comment is `yyds-deploy`).
-  Never write the private key into the repo or paste it into chat. If a key
-  was pasted, rotate it on the server after deploy.
+- SSH host comes from `DEPLOY_SSH_HOST` or GitHub secret `SERVER_HOST`.
+  Do not copy a server address into business code. The key file is
+  `~/.ssh/yyds_aliyun` (do not commit it).
 - Product catalog edits (`software-products.ts`, locales) are on the live
-  Andyyyds tree at `/var/www/yyds-course-platform`. After those source
+  Andyyyds tree (`YYDS_APP_DIR`). After those source
   changes, `npm run build` then `pm2 restart yyds-course`. Keep a `.next`
   backup before rebuilding.
 - Do not block local setup on GitHub write access to `yydsxwh/Andyyyds`.

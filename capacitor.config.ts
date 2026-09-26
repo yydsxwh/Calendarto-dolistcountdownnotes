@@ -1,12 +1,17 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
+const allowNavigation = (process.env.CAPACITOR_ALLOW_NAVIGATION || '')
+  .split(',')
+  .map((item) => item.trim())
+  .filter(Boolean)
+
 const config: CapacitorConfig = {
   appId: 'com.yydsxwh.kemiao.days',
   appName: '颗秒日事',
   webDir: 'dist',
   server: {
     androidScheme: 'https',
-    allowNavigation: ['yydsxwh.com', '*.yydsxwh.com'],
+    ...(allowNavigation.length ? { allowNavigation } : {}),
   },
   android: {
     backgroundColor: '#fff5f7',

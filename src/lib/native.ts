@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core'
+import { configuredApiOrigin } from './public-env'
 
 export function isNativeApp(): boolean {
   try {
@@ -9,7 +10,11 @@ export function isNativeApp(): boolean {
 }
 
 export function timetableOcrUrl(): string {
-  if (isNativeApp()) return 'https://www.yydsxwh.com/api/days/timetable-ocr'
+  if (isNativeApp()) {
+    const origin = configuredApiOrigin()
+    if (!origin) throw new Error('MISSING_VITE_DAYS_API_ORIGIN')
+    return `${origin}/api/days/timetable-ocr`
+  }
   return '/api/days/timetable-ocr'
 }
 

@@ -1,6 +1,5 @@
 [Unit]
 Description=颗秒日事 云同步服务
-Documentation=https://www.yydsxwh.com/products/days/
 After=network-online.target
 Wants=network-online.target
 
@@ -10,13 +9,10 @@ ExecStart=/usr/bin/node /opt/kemiao-days-sync/index.mjs
 Environment=DAYS_SYNC_PORT=3120
 Environment=DAYS_SYNC_HOST=127.0.0.1
 Environment=DAYS_SYNC_DATA_DIR=/var/lib/kemiao-days
-Environment=DAYS_SYNC_SESSION_URL=https://www.yydsxwh.com/api/auth/session
-Environment=DAYS_SYNC_ALLOWED_ORIGINS=https://www.yydsxwh.com,https://localhost
-Environment=RISHI_PUBLIC_ORIGIN=https://www.yydsxwh.com
-Environment=ACCOUNT_ISSUER=https://account.yydsxwh.com
 Environment=ACCOUNT_CLIENT_ID=rishi
-Environment=ACCOUNT_REDIRECT_URI=https://www.yydsxwh.com/api/days/auth/callback
-# ACCOUNT_CLIENT_SECRET / RISHI_SESSION_SECRET / PLATFORM_* 放 EnvironmentFile，不要写进仓库
+# 站点地址、Account issuer、回调和允许的来源只放 EnvironmentFile。
+# 不要把某一台机器的域名写进这个单元，否则同一份文件不能在另一台机器上用。
+# 替换线上单元之前，确认 /etc/kemiao-days-sync.env 已经有这些键。
 EnvironmentFile=-/etc/kemiao-days-sync.env
 Restart=always
 RestartSec=3

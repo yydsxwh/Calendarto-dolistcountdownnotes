@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
-# Build a debug APK for 颗秒日事. Installs a local Android SDK if needed.
+# 历史 Capacitor/WebView 调试包。不能作为官网正式 APK，也不能覆盖 kemiao-days.apk。
 set -euo pipefail
+if [[ "${ALLOW_CAPACITOR_DEBUG:-}" != "1" ]]; then
+  echo "已停止。android/ 只保留作历史参考。正式包请运行 scripts/build-android-native-release.sh" >&2
+  exit 1
+fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SDK="${ANDROID_SDK_ROOT:-$HOME/android-sdk}"
 export ANDROID_SDK_ROOT="$SDK"

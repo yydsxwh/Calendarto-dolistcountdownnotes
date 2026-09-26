@@ -82,8 +82,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DaysConfig {
     platformBaseUrl: (env.PLATFORM_API_URL || env.PLATFORM_BASE_URL || '').replace(/\/+$/, ''),
     platformServiceToken: env.PLATFORM_SERVICE_TOKEN || '',
     platformClientId: env.PLATFORM_CLIENT_ID || 'rishi',
-    // OCR 是可选回退能力；留空/off 时不让它拖住日事核心功能。
-    wwwOcrUrl: optionalUrl(env.DAYS_OCR_FALLBACK_URL, `${publicOrigin}/api/days/timetable-ocr`),
+    // OCR 是可选的外部回退能力。不能默认指向本 BFF 的同一路由，否则会自调用直至失败。
+    wwwOcrUrl: optionalUrl(env.DAYS_OCR_FALLBACK_URL, ''),
     nativeHandoffUri: env.RISHI_NATIVE_HANDOFF_URI || 'kemiao-days://auth',
     adminSubs: splitList(env.RISHI_ADMIN_SUBS, ''),
     configEncryptionKey: env.RISHI_CONFIG_ENCRYPTION_KEY || '',

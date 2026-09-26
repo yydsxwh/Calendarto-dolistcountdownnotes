@@ -44,15 +44,22 @@ export async function importTimetableAny(
   let result: TimetableImportResult
   let source: ImportSource = 'sheet'
   if (kind === 'sheet') {
-    result = await importTimetableFile(file, defaults)
+    // 表格有确定性解析，先本地跑完；本地能解决就不花 AI 的钱
+    try {
+      result = await importTimetableFile(file, defaults)
+    } catch (error) {
+      if (file.name.toLowerCase().endsWith('.csv') || file.name.toLowerCase().endsWith('.tsv')) throw error
+      result = await importViaAi(file, defaults, userHint, focus)
+      source = 'ai'
+    }
   } else if (kind === 'image' || kind === 'pdf' || kind === 'document') {
-    result = await importViaAi(file, defaults, userHint)
+    result = await importViaAi(file, defaults, userHint, focus)
     source = 'ai'
   } else {
     try {
       result = await importTimetableFile(file, defaults)
     } catch {
-      result = await importViaAi(file, defaults, userHint)
+      result = await importViaAi(file, defaults, userHint, focus)
       source = 'ai'
     }
   }

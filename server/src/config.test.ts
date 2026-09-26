@@ -14,6 +14,11 @@ test('production requires the public origin instead of embedding one', () => {
     RISHI_SESSION_SECRET: 'x'.repeat(24),
   })
   assert.equal(config.wwwSessionUrl, 'https://days.example/api/auth/session')
-  assert.equal(config.wwwOcrUrl, 'https://days.example/api/days/timetable-ocr')
+  assert.equal(config.wwwOcrUrl, '')
   assert.equal(config.accountRedirectUri, 'https://days.example/api/days/auth/callback')
+})
+
+test('OCR fallback is only enabled by an explicit external URL', () => {
+  const config = loadConfig({ DAYS_OCR_FALLBACK_URL: 'https://ocr.example/api/parse' })
+  assert.equal(config.wwwOcrUrl, 'https://ocr.example/api/parse')
 })

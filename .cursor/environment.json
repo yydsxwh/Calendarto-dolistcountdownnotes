@@ -1,0 +1,21 @@
+{
+  "name": "颗秒日事 (rishi)",
+  "install": "npm install",
+  "repositoryDependencies": ["github.com/yydsxwh/shared"],
+  "terminals": [
+    {
+      "name": "dev",
+      "command": "npm run dev",
+      "description": "启动颗秒日事网页开发服务器"
+    },
+    {
+      "name": "bff",
+      "command": "DAYS_SYNC_DATA_DIR=./data/kemiao-days npm run dev:bff",
+      "description": "启动日事同步与账号 BFF"
+    }
+  ],
+  "ports": [
+    { "name": "web", "port": 5173 },
+    { "name": "bff", "port": 3120 }
+  ]
+}

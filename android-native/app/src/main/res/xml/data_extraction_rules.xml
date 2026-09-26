@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup disableIfNoEncryptionCapabilities="true">
+        <exclude domain="sharedpref" path="rishi_secure_session.xml" />
+        <exclude domain="file" path="kemiao-days-v1.json" />
+        <exclude domain="file" path="kemiao-days-version.txt" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="rishi_secure_session.xml" />
+    </device-transfer>
+</data-extraction-rules>

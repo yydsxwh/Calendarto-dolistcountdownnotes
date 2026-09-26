@@ -10,7 +10,8 @@ node_modules
 dist
 dist-ssr
 server/dist
-data
+# 只忽略仓库根目录的本地数据。Android 源码包也叫 data，不能写成不带斜杠的 data。
+/data
 *.local
 *.tsbuildinfo
 
@@ -34,6 +35,15 @@ android/app/build
 android/app/release
 android/build
 android/captures
+android-native/.gradle
+android-native/.idea
+android-native/local.properties
+android-native/app/build
+android-native/build
 *.apk
 *.aab
 *.ap_
+*.jks
+*.keystore
+keystore.properties
+local.properties

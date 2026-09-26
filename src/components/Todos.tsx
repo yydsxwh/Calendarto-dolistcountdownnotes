@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { formatTodoTimeRange } from '../lib/calendar-events'
 import { startOfToday, toISODate } from '../lib/dates'
 import type { AppStore } from '../hooks/useAppStore'
+import { ReminderRulesEditor } from './ReminderRulesEditor'
 import type { Priority } from '../types'
 
 const REMINDERS = [
@@ -17,7 +18,14 @@ const REMINDERS = [
 
 type Filter = 'all' | 'today' | 'upcoming' | 'done'
 
-export default function Todos({ store }: { store: AppStore }) {
+export default function Todos({
+  store,
+  embedded = false,
+}: {
+  store: AppStore
+  /** 嵌在「我的一天」里时不再重复一层 view 外壳 */
+  embedded?: boolean
+}) {
   const [title, setTitle] = useState('')
   const [dueDate, setDueDate] = useState('')
   const [dueTime, setDueTime] = useState('')
@@ -53,8 +61,9 @@ export default function Todos({ store }: { store: AppStore }) {
     [store.data.todos, filter, today],
   )
 
+  const Wrapper = embedded ? 'div' : 'section'
   return (
-    <section className="view">
+    <Wrapper className={embedded ? 'todo-panel' : 'view'}>
       <header className="view-head">
         <h2>待办清单</h2>
         <p className="muted">
@@ -149,6 +158,13 @@ export default function Todos({ store }: { store: AppStore }) {
                 <span className={`prio ${t.priority}`} />
                 <span>{t.title}</span>
               </label>
+              <ReminderRulesEditor
+                store={store}
+                targetType="todo"
+                targetId={t.id}
+                startLabel={`${t.dueDate || '未定期'} ${t.dueTime || ''}`.trim()}
+                start={t.dueDate ? new Date(`${t.dueDate}T${t.dueTime || '09:00'}`) : null}
+              />
               <span className="meta">
                 {t.dueDate || '未定期'}
                 {formatTodoTimeRange(t) ? ` ${formatTodoTimeRange(t)}` : ''}
@@ -163,6 +179,6 @@ export default function Todos({ store }: { store: AppStore }) {
           ))}
         </ul>
       </div>
-    </section>
+    </Wrapper>
   )
 }

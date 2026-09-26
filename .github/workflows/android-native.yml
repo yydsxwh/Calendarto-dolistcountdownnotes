@@ -1,14 +1,7 @@
 name: Android Native
 
 on:
-  push:
-    paths:
-      - "android-native/**"
-      - ".github/workflows/android-native.yml"
-  pull_request:
-    paths:
-      - "android-native/**"
-      - ".github/workflows/android-native.yml"
+  workflow_dispatch:
 
 permissions:
   contents: read

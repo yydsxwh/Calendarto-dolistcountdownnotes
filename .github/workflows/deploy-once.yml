@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  DAYS_WEB_ROOT: ${{ vars.DAYS_WEB_ROOT }}
+  DAYS_WEB_ROOT: ${{ vars.DAYS_WEB_ROOT || '/var/www/yyds-course-platform/public/products/days' }}
 
 jobs:
   web:

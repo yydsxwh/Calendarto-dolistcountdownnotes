@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { handleAccountProbe, handleAdminMe, handleIntegrations, handlePlatformProbe, handleProductApis } from './integrations'
 import { loadConfig, oidcConfigured, platformConfigured, type DaysConfig } from './config'
-import { recognizeWithPlatform, recognizeWithWwwFallback, type OcrKind } from './ai-ocr'
+import { MAX_OCR_FILE_BYTES, OcrError, recognizeWithPlatform, type OcrKind } from './ai-ocr'
 import { consumeHandoff, issueHandoff } from './handoff'
 import {
   applyCors,
@@ -20,9 +20,11 @@ import { assertUploadAllowed, createRishiPlatform } from './platform'
 import { issueSession, OIDC_COOKIE, persistSession, publicUser, readOidcStart, revokeSession, SESSION_COOKIE, sessionFromRequest, signOidcStart } from './session'
 import { migrateLegacyIfNeeded, readRecord, writeRecord } from './sync-store'
 import { upsertUser } from './users'
+import { handleHolidayImport, handleHolidays } from './holidays'
 
 const MAX_JSON_BYTES = 4 * 1024 * 1024
-const MAX_FILE_BYTES = 8 * 1024 * 1024
+/** 上传类接口统一用 OCR 的上限，客户端与 nginx 也是同一个数 */
+const MAX_FILE_BYTES = MAX_OCR_FILE_BYTES
 
 function defaultAppPath(config: DaysConfig) {
   return `${config.publicOrigin}/products/days/`
@@ -235,44 +237,79 @@ function parseMultipart(buffer: Buffer, contentType: string): { fileName: string
   return { fileName, mimeType, bytes, fields }
 }
 
+const OCR_KINDS: OcrKind[] = ['courses', 'exams', 'self', 'auto']
+
 async function handleOcr(req: IncomingMessage, res: ServerResponse, config: DaysConfig) {
   if (req.method !== 'POST') {
     sendJson(res, 405, { error: 'method_not_allowed' })
     return
   }
-  let caller
+  const caller = await resolveCaller(req, config).catch(() => null)
+
+  let raw: Buffer
   try {
-    caller = await resolveCaller(req, config)
-  } catch {
-    caller = null
-  }
-  const raw = await readBody(req, MAX_FILE_BYTES)
-  const parsed = parseMultipart(raw, String(req.headers['content-type'] || ''))
-  const kind = (parsed.fields.kind || parsed.fields.focus || 'auto') as OcrKind
-  const userHint = parsed.fields.userHint || ''
-  const platform = createRishiPlatform(config)
-  try {
-    if (platform && caller) {
-      const payload = await recognizeWithPlatform(platform, {
-        imageBase64: parsed.bytes.toString('base64'),
-        mimeType: parsed.mimeType,
-        userHint,
-        kind,
-        actorId: caller.sub,
+    raw = await readBody(req, MAX_OCR_FILE_BYTES)
+  } catch (error) {
+    if (error instanceof Error && error.message === 'TOO_LARGE') {
+      sendJson(res, 413, {
+        error: 'file_too_large',
+        message: `文件超过 ${Math.round(MAX_OCR_FILE_BYTES / 1024 / 1024)}MB。请裁剪图片或只导入课表那一页。`,
       })
-      sendJson(res, 200, payload)
       return
     }
-    const payload = await recognizeWithWwwFallback(config, {
+    throw error
+  }
+
+  let parsed
+  try {
+    parsed = parseMultipart(raw, String(req.headers['content-type'] || ''))
+  } catch {
+    sendJson(res, 400, { error: 'unsupported_format', message: '没有收到文件，请重新选择。' })
+    return
+  }
+
+  const requested = (parsed.fields.kind || parsed.fields.focus || 'auto') as OcrKind
+  const kind: OcrKind = OCR_KINDS.includes(requested) ? requested : 'auto'
+  const userHint = parsed.fields.userHint || ''
+
+  // AI 识别是付费能力，必须先登录再用，不能悄悄走公共额度
+  if (!caller) {
+    sendJson(res, 401, {
+      error: 'login_required',
+      message: '课表识别需要先登录账号中心。登录后会回到这一页继续导入。',
+    })
+    return
+  }
+
+  const platform = createRishiPlatform(config)
+  if (!platform) {
+    // 以前这里会回落到 www 的同名地址——那条路由就是 BFF 自己，等于自己打自己，
+    // 结果永远是 500。宁可明确报配置错误，也不要再造一个假的回退。
+    sendJson(res, 503, {
+      error: 'ai_unconfigured',
+      message: '站点还没有接通公共平台的 AI 识别服务。请站长在主站后台「系统设置 → AI 接口」里完成配置。',
+    })
+    return
+  }
+
+  try {
+    const payload = await recognizeWithPlatform(platform, {
       fileName: parsed.fileName,
-      bytes: parsed.bytes,
       mimeType: parsed.mimeType,
+      bytes: parsed.bytes,
       userHint,
+      kind,
+      actorId: caller.sub,
     })
     sendJson(res, 200, payload)
   } catch (error) {
+    if (error instanceof OcrError) {
+      log('warn', 'ocr rejected', { code: error.code, kind })
+      sendJson(res, error.status, { error: error.code, message: error.message })
+      return
+    }
     log('warn', 'ocr failed', { reason: error instanceof Error ? error.message : 'error' })
-    sendJson(res, 502, { error: error instanceof Error ? error.message : 'ocr_failed' })
+    sendJson(res, 502, { error: 'ocr_failed', message: '识别没有成功完成，请重试一次。' })
   }
 }
 
@@ -358,6 +395,8 @@ export function createDaysServer(config: DaysConfig) {
       if (path === '/api/days/auth/logout' && req.method === 'GET') return void (await handleLogout(req, res, url, config))
       if (path === '/api/days/auth/handoff' && req.method === 'POST') return void (await handleHandoff(req, res, config))
       if (path === '/api/days/sync') return void (await handleSync(req, res, config))
+      if (path === '/api/days/holidays' && req.method === 'GET') return void (await handleHolidays(req, res, url, config))
+      if (path === '/api/days/admin/holidays') return void (await handleHolidayImport(req, res, config))
       if (path === '/api/days/timetable-ocr') return void (await handleOcr(req, res, config))
       if (path.startsWith('/api/days/files')) return void (await handleFiles(req, res, url, config))
       if (path === '/api/days/admin/me' && req.method === 'GET') return void (await handleAdminMe(req, res, config))

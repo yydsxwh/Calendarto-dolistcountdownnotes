@@ -1,0 +1,3 @@
+-keepattributes *Annotation*, InnerClasses
+-dontwarn okhttp3.**
+-keep class com.yydsxwh.kemiao.days.** { *; }

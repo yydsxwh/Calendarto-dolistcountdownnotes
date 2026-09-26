@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { addClockMinutes, formatDuration, WEEKDAY_LABELS } from '../lib/periods'
 import { loadData, saveData } from '../lib/store'
-import type { AppData, Course, TimetableViewSettings, Exam } from '../types'
+import { courseRemarkId, makeRemark, occurrenceRemarkId, remarkById, upsertRemark, withoutRemark } from '../lib/remarks'
+import { termLabel } from '../lib/terms'
+import type { Course, TimetableViewSettings, Exam } from '../types'
 import {
   HOUR_PX,
   axisHeight,
@@ -50,7 +52,11 @@ export default function WeekTimetable({
   onShowWeekdays?: (weekdays: number[]) => void
 }) {
   const [detail, setDetail] = useState<Course | null>(null)
+  const [detailDay, setDetailDay] = useState('')
+  const [scope, setScope] = useState<'occurrence' | 'course'>('occurrence')
   const [draftNote, setDraftNote] = useState('')
+  const [draftOccurrence, setDraftOccurrence] = useState('')
+  const [noteMessage, setNoteMessage] = useState('')
   const [draftColor, setDraftColor] = useState(COURSE_PALETTE[0])
   const [customColor, setCustomColor] = useState(COURSE_PALETTE[0])
   const days = useMemo(() => weekDays(weekStart, now, view.weekStartsOn, view.hiddenWeekdays), [now, view.hiddenWeekdays, view.weekStartsOn, weekStart])
@@ -62,10 +68,17 @@ export default function WeekTimetable({
   const nowTop = nowLineTop(now, view.hiddenHours, HOUR_PX, axis)
   const columns = `54px repeat(${Math.max(1, days.length)}, minmax(0, 1fr))`
 
-  const openCourse = (course: Course) => {
-    const latest = loadData().courses.find((item) => item.id === course.id) ?? course
+  const openCourse = (course: Course, iso: string) => {
+    const data = loadData()
+    const latest = data.courses.find((item) => item.id === course.id) ?? course
+    const courseNote = remarkById(data.remarks, courseRemarkId(latest.id))?.body ?? latest.note ?? ''
+    const once = remarkById(data.remarks, occurrenceRemarkId(latest.id, iso, latest.startTime))?.body ?? ''
     setDetail(latest)
-    setDraftNote(latest.note ?? '')
+    setDetailDay(iso)
+    setScope('occurrence')
+    setDraftNote(courseNote)
+    setDraftOccurrence(once)
+    setNoteMessage('')
     setDraftColor(latest.color || COURSE_PALETTE[0])
     setCustomColor(latest.color || COURSE_PALETTE[0])
     onSelectCourse(latest)
@@ -74,12 +87,32 @@ export default function WeekTimetable({
   const saveCourseDetail = () => {
     if (!detail) return
     const data = loadData()
-    const courses = data.courses.map((course) => course.id === detail.id ? { ...course, note: draftNote, color: draftColor } : course)
-    saveData({ ...data, courses } as AppData)
+    const body = scope === 'course' ? draftNote : draftOccurrence
+    const remark = makeRemark(scope, body, { courseId: detail.id, date: detailDay, startTime: detail.startTime })
+    const remarks = body.trim() ? upsertRemark(data.remarks, remark) : withoutRemark(data.remarks, remark.id)
+    const tombstones = body.trim() ? (data.tombstones ?? []) : [...(data.tombstones ?? []).filter((item) => item.id !== remark.id), { id: remark.id, deletedAt: Date.now() }]
+    const courses = data.courses.map((course) => course.id === detail.id ? { ...course, color: draftColor, note: scope === 'course' ? body : (remarkById(remarks, courseRemarkId(course.id))?.body ?? course.note) } : course)
+    saveData({ ...data, courses, remarks, tombstones })
+    window.dispatchEvent(new Event('days-data-changed'))
     const updated = courses.find((course) => course.id === detail.id)
     if (updated) setDetail(updated)
-    window.dispatchEvent(new Event('days-data-changed'))
+    setNoteMessage(body.trim() ? (scope === 'course' ? '整门课程备注已保存' : '本次课程备注已保存') : '备注已清空')
     onSelectCourse(updated ?? detail)
+  }
+
+  const deleteScopedNote = () => {
+    if (!detail) return
+    const label = scope === 'course' ? '整门课程备注' : '本次课程备注'
+    if (!window.confirm(`删除${label}？另一类备注会保留。`)) return
+    const data = loadData()
+    const id = scope === 'course' ? courseRemarkId(detail.id) : occurrenceRemarkId(detail.id, detailDay, detail.startTime)
+    const remarks = withoutRemark(data.remarks, id)
+    const courses = scope === 'course' ? data.courses.map((course) => course.id === detail.id ? { ...course, note: undefined } : course) : data.courses
+    saveData({ ...data, courses, remarks, tombstones: [...(data.tombstones ?? []).filter((item) => item.id !== id), { id, deletedAt: Date.now() }] })
+    window.dispatchEvent(new Event('days-data-changed'))
+    if (scope === 'course') setDraftNote('')
+    else setDraftOccurrence('')
+    setNoteMessage(`${label}已删除`)
   }
 
   const deleteCourse = () => {
@@ -107,7 +140,7 @@ export default function WeekTimetable({
             {axis.marks.map((mark) => <div key={`${mark.kind}-${mark.minutes}`} className={`week-tt-hour is-${mark.kind}`} style={{ top: axisOffset(mark.minutes, axis) }}><span>{mark.label}</span>{onHideHour && mark.kind === 'hour' && axis.marks.length > 1 ? <button type="button" className="week-tt-hide" onClick={() => onHideHour(Math.floor(mark.minutes / 60) % 24)}>×</button> : null}</div>)}
             {onShowHours ? hiddenRuns.filter((run) => run.start !== 0).map((run) => { const top = axisRunTop(run, axis); if (top < -8 || top > bodyHeight) return null; return <button key={`${run.start}-${run.end}`} type="button" className="week-tt-expand week-tt-expand-hour" style={{ top }} onClick={() => onShowHours(hoursInRun(run))}>▾</button> }) : null}
           </div>
-          {days.map((day) => <DayColumn key={day.iso} day={day} courses={courses.filter((c) => c.weekday === day.weekday)} exams={examsForDay(exams, day.iso)} hiddenHours={view.hiddenHours} axis={axis} nowTop={day.isToday ? nowTop : null} selectedId={selectedId} offWeekIds={offWeekIds} onSelectCourse={openCourse} onSelectSlot={onSelectSlot} />)}
+          {days.map((day) => <DayColumn key={day.iso} day={day} courses={courses.filter((c) => c.weekday === day.weekday)} exams={examsForDay(exams, day.iso)} hiddenHours={view.hiddenHours} axis={axis} nowTop={day.isToday ? nowTop : null} selectedId={selectedId} offWeekIds={offWeekIds} onSelectCourse={(course) => openCourse(course, day.iso)} onSelectSlot={onSelectSlot} />)}
         </div>
       </div>
 
@@ -128,7 +161,13 @@ export default function WeekTimetable({
                 <div className="mini-list"><span>时间</span><strong>{detail.startTime}-{detail.endTime} · {formatDuration(detail.startTime, detail.endTime)}</strong></div>
                 {detail.location ? <div className="mini-list"><span>教室</span><strong>{detail.location}</strong></div> : null}
                 {detail.teacher ? <div className="mini-list"><span>老师</span><strong>{detail.teacher}</strong></div> : null}
-                {detail.weeks ? <div className="mini-list"><span>周次</span><strong>{detail.weeks}</strong></div> : null}
+                <div className="mini-list"><span>日期</span><strong>{detailDay}</strong></div>
+                <div className="mini-list"><span>星期</span><strong>{WEEKDAY_LABELS[detail.weekday - 1]}</strong></div>
+                <div className="mini-list"><span>节次</span><strong>{(() => { const stored = loadData(); const index = stored.timetableView.classPeriods.findIndex((item) => item.start === detail.startTime); return index >= 0 ? `第${index + 1}节` : `${detail.startTime}-${detail.endTime}` })()}</strong></div>
+                {detail.weeks ? <div className="mini-list"><span>周次</span><strong>{detail.weeks}</strong></div> : <div className="mini-list"><span>周次</span><strong>未填写</strong></div>}
+                <div className="mini-list"><span>学期</span><strong>{(() => { const stored = loadData(); const term = stored.terms.find((item) => item.id === (detail.termId || stored.currentTermId)); return term ? termLabel(term) : '未设置学期' })()}</strong></div>
+                <div className="mini-list"><span>重复</span><strong>每周{detail.weeks ? ` · ${detail.weeks}` : ''}</strong></div>
+                <div className="mini-list"><span>提醒</span><strong>提前 {detail.remindMinutes} 分钟</strong></div>
               </div>
             </div>
             <div className="card" style={{ marginTop:16, boxShadow:'none' }}>
@@ -143,12 +182,19 @@ export default function WeekTimetable({
               </div>
             </div>
             <div className="card" style={{ marginTop:16, boxShadow:'none' }}>
-              <h3>我的课程备注</h3>
-              <textarea className="textarea" rows={8} value={draftNote} onChange={(e) => setDraftNote(e.target.value)} placeholder="例如：老师重点讲第三章；下周带计算器；作业交到学习通……" />
-              <p className="muted">备注会保存到这门课，并随账号同步到其他设备。</p>
+              <h3>课程备注</h3>
+              <p>{detailDay} · {detail.startTime}-{detail.endTime}</p>
+              <label><input type="radio" name="note-scope" checked={scope === 'occurrence'} onChange={() => setScope('occurrence')} /> 仅本次课程</label>
+              <label><input type="radio" name="note-scope" checked={scope === 'course'} onChange={() => setScope('course')} /> 整门课程</label>
+              <textarea className="textarea" rows={8} value={scope === 'course' ? draftNote : draftOccurrence} onChange={(e) => (scope === 'course' ? setDraftNote(e.target.value) : setDraftOccurrence(e.target.value))} placeholder={scope === 'course' ? '教材、固定要求，这门课每次都能看到' : '只记这一次的作业或临时换教室'} aria-label="课程备注" />
+              <p style={{ whiteSpace: 'pre-wrap' }}>整门课程：{draftNote || '还没有'}</p>
+              <p style={{ whiteSpace: 'pre-wrap' }}>本次课程：{draftOccurrence || '还没有'}</p>
+              {noteMessage ? <p role="status">{noteMessage}</p> : null}
+              <button className="btn" type="button" onClick={deleteScopedNote}>删除当前范围的备注</button>
             </div>
             <div className="row wrap" style={{ marginTop:18, justifyContent:'space-between' }}>
               <button className="btn ghost" onClick={deleteCourse}>删除课程</button>
+              <button className="btn" type="button" onClick={() => { if (window.confirm('放弃还没保存的备注？')) setDetail(null) }}>取消</button>
               <button className="btn primary" onClick={saveCourseDetail}>保存课程详情</button>
             </div>
           </section>

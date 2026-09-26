@@ -9,3 +9,15 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }
+
+declare module 'lunar-javascript' {
+  export class Solar {
+    static fromYmd(year: number, month: number, day: number): Solar
+    getLunar(): { getJieQi(): string; getMonthInChinese(): string; getDayInChinese(): string }
+    toYmd(): string
+  }
+  export class Lunar {
+    static fromYmd(year: number, month: number, day: number): Lunar
+    getSolar(): { toYmd(): string }
+  }
+}

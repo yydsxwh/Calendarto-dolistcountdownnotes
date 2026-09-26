@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>下载颗秒日事 Android</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 0; background: #fff5f7; color: #3b2340; }
+    main { max-width: 40rem; margin: 0 auto; padding: 24px 16px 48px; }
+    a.button { display: inline-block; background: #2563eb; color: #fff; text-decoration: none; border-radius: 999px; padding: 12px 18px; }
+    .card { background: #fff; border-radius: 16px; padding: 16px; margin: 16px 0; }
+    code { word-break: break-all; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>颗秒日事 Android</h1>
+    <p id="wechat" hidden>微信里通常下不了安装包。请点右上角，选择在系统浏览器中打开本页后再下载。</p>
+    <p><a class="button" href="./kemiao-days.apk">下载 Android 安装包</a></p>
+    <div class="card" id="meta">正在读取版本信息…</div>
+    <div class="card">
+      <p>安装时如果系统询问，请允许浏览器安装未知应用。这是 Android 对浏览器下载安装包的正常提示。</p>
+      <p>早期测试版（包括曾错误发布的 WebView 包）与现在的正式签名不同，不能直接覆盖安装。请先在旧版里登录并同步，或导出 JSON 备份，确认课程、待办、日子和便签都在，再卸载旧版，安装这个正式版，然后登录同一账号核对。</p>
+      <p>从此以后的正式版可以按系统提示覆盖升级，不需要再卸载。</p>
+    </div>
+  </main>
+  <script>
+    if (/MicroMessenger/i.test(navigator.userAgent)) document.getElementById('wechat').hidden = false
+    fetch('./kemiao-days-release.json', { cache: 'no-store' }).then(function (res) {
+      if (!res.ok) throw new Error('missing')
+      return res.json()
+    }).then(function (meta) {
+      var kb = Math.round(meta.size / 1024)
+      document.getElementById('meta').innerHTML =
+        '<p>版本 ' + meta.versionName + '（' + meta.versionCode + '）</p>' +
+        '<p>大小 ' + kb + ' KB</p>' +
+        '<p>发布时间 ' + meta.publishedAt + '</p>' +
+        '<p>SHA-256<br><code>' + meta.sha256 + '</code></p>'
+    }).catch(function () {
+      document.getElementById('meta').textContent = 'Android 新版迁移中。下载前请先完成同步或导出备份。'
+    })
+  </script>
+</body>
+</html>

@@ -19,6 +19,10 @@ import {
 import type { AppStore } from '../hooks/useAppStore'
 import type { CalendarEvent } from '../types'
 import RecurringReminderForm from './RecurringReminderForm'
+import { HolidayDayList } from './HolidaySection'
+import { ReminderRulesEditor } from './ReminderRulesEditor'
+import { holidayBadges, holidayMark, holidaysOn } from '../lib/holidays/query'
+import { DateDetailDialog } from './DateDetailDialog'
 
 const EVENT_REPEAT_OPTIONS: { value: CalendarEvent['repeat']; label: string }[] = [
   { value: 'none', label: '不重复' },
@@ -42,6 +46,11 @@ export default function CalendarView({ store }: { store: AppStore }) {
   const [eventRemind, setEventRemind] = useState(store.data.reminderSettings.eventDefaultMinutes)
   const [draft, setDraft] = useState<RecurringDraft>(() => emptyRecurringDraft(toISODate(today)))
   const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingEventId, setEditingEventId] = useState<string | null>(null)
+  const [eventNote, setEventNote] = useState('')
+  const [draftEventId, setDraftEventId] = useState(() => crypto.randomUUID())
+  const [pendingDelete, setPendingDelete] = useState<CalendarEvent | null>(null)
+  const [dayDetail, setDayDetail] = useState(false)
 
   const iso = toISODate(selected)
   const cells = useMemo(() => monthCells(view), [view])
@@ -89,16 +98,22 @@ export default function CalendarView({ store }: { store: AppStore }) {
     const title = quick.trim()
     if (!title) return
     if (kind === 'event') {
-      store.addCalendarEvent(title, {
+      const extras = {
         date: iso,
         startTime: allDay ? undefined : startTime,
         endTime: allDay ? undefined : endTime,
         allDay,
         location: location.trim() || undefined,
+        note: eventNote.trim() || undefined,
         repeat,
         remindMinutes: allDay ? 0 : eventRemind,
-      })
+      }
+      if (editingEventId) store.updateCalendarEvent(editingEventId, extras)
+      else store.addCalendarEvent(title, { ...extras, id: draftEventId })
       setLocation('')
+      setEventNote('')
+      setEditingEventId(null)
+      setDraftEventId(crypto.randomUUID())
     } else if (kind === 'todo') {
       store.addTodo(title, {
         dueDate: iso,
@@ -161,13 +176,23 @@ export default function CalendarView({ store }: { store: AppStore }) {
             const isToday = key === toISODate(today)
             const isSelected = key === iso
             const dots = marks.get(key)
+            const holidayItems = holidaysOn(key, store.data.holidaySettings)
+            const badges = holidayBadges(holidayItems, 1)
+            const holidayLabel = holidayItems.map((item) => `${holidayMark(item)}${item.name}`).join(' ')
             return (
               <button
                 key={idx}
                 className={`cal-cell ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}`}
-                onClick={() => setSelected(date)}
+                onClick={() => { setSelected(date); setDayDetail(true) }}
+                aria-label={`${date.getDate()}日${holidayLabel ? ` ${holidayLabel}` : ''}`}
               >
                 {date.getDate()}
+                {store.data.calendarEvents.filter((event) => eventMatchesDate(event, key)).length > 1 && (
+                  <span className="cal-more">+{store.data.calendarEvents.filter((event) => eventMatchesDate(event, key)).length - 1}</span>
+                )}
+                {badges.shown[0] && (
+                  <span className="cal-holiday">{holidayMark(badges.shown[0])} {badges.shown[0].name}{badges.extra ? ` +${badges.extra}` : ''}</span>
+                )}
                 <span className="dots">
                   {dots?.event && <i className="dot event" />}
                   {dots?.todo && <i className="dot todo" />}
@@ -184,6 +209,7 @@ export default function CalendarView({ store }: { store: AppStore }) {
 
       <aside className="card day-panel">
         <h3>{formatLong(selected)}</h3>
+        <HolidayDayList store={store} date={iso} />
         <div className="row wrap">
           <select className="input slim" value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>
             <option value="event">日程</option>
@@ -203,8 +229,13 @@ export default function CalendarView({ store }: { store: AppStore }) {
                 aria-label="快速添加到这一天"
               />
               <button className="btn primary" onClick={addQuick}>
-                添加
+                {editingEventId ? '保存日程' : '添加'}
               </button>
+              {editingEventId && (
+                <button className="btn" type="button" onClick={() => { setEditingEventId(null); setQuick(''); setEventNote(''); setDraftEventId(crypto.randomUUID()) }}>
+                  取消编辑
+                </button>
+              )}
             </>
           )}
         </div>
@@ -233,6 +264,7 @@ export default function CalendarView({ store }: { store: AppStore }) {
             {kind === 'event' && (
               <div className="row wrap">
                 <input className="input" placeholder="地点（可选）" value={location} onChange={(e) => setLocation(e.target.value)} aria-label="地点" />
+                <input className="input" placeholder="说明（可选）" value={eventNote} onChange={(e) => setEventNote(e.target.value)} aria-label="说明" />
                 <select className="input slim" value={repeat ?? 'none'} onChange={(e) => setRepeat(e.target.value as CalendarEvent['repeat'])} aria-label="重复">
                   {EVENT_REPEAT_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value ?? 'none'}>{option.label}</option>
@@ -268,14 +300,37 @@ export default function CalendarView({ store }: { store: AppStore }) {
                 {formatEventTime(event) ? `${formatEventTime(event)} ` : ''}
                 {event.title}
                 {event.location ? ` · ${event.location}` : ''}
+                <ReminderRulesEditor store={store} targetType="event" targetId={event.id} startLabel={`${event.date} ${event.startTime || '全天'}`} start={event.startTime ? new Date(`${event.date}T${event.startTime}`) : new Date(`${event.date}T09:00`)} />
                 {event.repeat && event.repeat !== 'none'
                   ? ` · ${EVENT_REPEAT_OPTIONS.find((option) => option.value === event.repeat)?.label ?? ''}`
                   : ''}
               </span>
-              <button className="icon-btn" onClick={() => store.removeCalendarEvent(event.id)} aria-label="删除日程">✕</button>
+              <span className="row wrap">
+                <button className="link" type="button" onClick={() => {
+                  setKind('event')
+                  setEditingEventId(event.id)
+                  setQuick(event.title)
+                  setAllDay(event.allDay)
+                  setStartTime(event.startTime || '09:00')
+                  setEndTime(event.endTime || '10:00')
+                  setLocation(event.location || '')
+                  setEventNote(event.note || '')
+                  setRepeat(event.repeat ?? 'none')
+                  setEventRemind(event.remindMinutes)
+                }}>编辑</button>
+                <button className="icon-btn" type="button" onClick={() => setPendingDelete(event)} aria-label="删除日程">✕</button>
+              </span>
             </li>
           ))}
         </ul>
+        {pendingDelete && (
+          <p className="muted">
+            确认删除「{pendingDelete.title}」？
+            {pendingDelete.repeat && pendingDelete.repeat !== 'none' ? '这会删除整条重复日程，不能只删这一天。' : '只删除这一条，同一天的其他日程保留。'}
+            <button className="btn tiny" type="button" onClick={() => { store.removeCalendarEvent(pendingDelete.id); setPendingDelete(null) }}>确认删除</button>
+            <button className="btn tiny" type="button" onClick={() => setPendingDelete(null)}>取消</button>
+          </p>
+        )}
 
         <h4>周期性提醒</h4>
         <ul className="mini-list">
@@ -374,6 +429,21 @@ export default function CalendarView({ store }: { store: AppStore }) {
           ))}
         </ul>
       </aside>
+      {dayDetail ? <DateDetailDialog store={store} iso={iso} onClose={() => setDayDetail(false)} onOpenEvent={(id) => {
+        const event = store.data.calendarEvents.find((item) => item.id === id)
+        if (!event) return
+        setKind('event')
+        setEditingEventId(event.id)
+        setQuick(event.title)
+        setAllDay(event.allDay)
+        setStartTime(event.startTime || '09:00')
+        setEndTime(event.endTime || '10:00')
+        setLocation(event.location || '')
+        setEventNote(event.note || '')
+        setRepeat(event.repeat ?? 'none')
+        setEventRemind(event.remindMinutes)
+        setDayDetail(false)
+      }} /> : null}
     </section>
   )
 }

@@ -1,3 +1,4 @@
+import { absoluteApiUrl } from './public-env'
 import { isNativeApp } from './native'
 
 const TOKEN_KEY = 'rishi-session-token'
@@ -31,15 +32,11 @@ export async function setNativeSessionToken(token: string | null): Promise<void>
 
 export async function startNativeLogin(): Promise<void> {
   const { Browser } = await import('@capacitor/browser')
-  const url = `${window.location.protocol === 'https:' || window.location.protocol === 'http:' ? '' : 'https://www.yydsxwh.com'}`
-  const login = isNativeApp()
-    ? `https://www.yydsxwh.com/api/days/auth/login?native=1`
-    : `${url}/api/days/auth/login?native=1`
-  await Browser.open({ url: login })
+  await Browser.open({ url: absoluteApiUrl('/api/days/auth/login?native=1', isNativeApp()) })
 }
 
 export async function consumeNativeHandoff(code: string): Promise<{ token: string; user: { sub: string; name: string; avatarUrl: string } }> {
-  const response = await fetch('https://www.yydsxwh.com/api/days/auth/handoff', {
+  const response = await fetch(absoluteApiUrl('/api/days/auth/handoff', isNativeApp()), {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ code }),

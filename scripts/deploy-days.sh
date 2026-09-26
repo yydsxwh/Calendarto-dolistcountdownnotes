@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Publish the static 颗秒日事 build to www.yydsxwh.com/products/days/
+# Publish the static days build. Set DEPLOY_SSH_HOST and DEPLOY_REMOTE_DIR.
 # Uses ~/.ssh/yyds_aliyun (never commit that key).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 KEY="${DEPLOY_SSH_KEY_FILE:-$HOME/.ssh/yyds_aliyun}"
-HOST="${DEPLOY_SSH_HOST:-admin@47.242.157.181}"
-DEST="${DEPLOY_REMOTE_DIR:-/var/www/yyds-course-platform/public/products/days}"
+HOST="${DEPLOY_SSH_HOST:?set DEPLOY_SSH_HOST}"
+DEST="${DEPLOY_REMOTE_DIR:?set DEPLOY_REMOTE_DIR}"
 
 if [[ ! -f "$KEY" ]]; then
   echo "Missing SSH key at $KEY. Put the deploy key there (chmod 600). Do not paste it into chat." >&2
@@ -27,8 +27,6 @@ else
 fi
 
 echo "Published $HOST:$DEST"
-echo "Open https://www.yydsxwh.com/products/days/"
-echo "Listing: https://www.yydsxwh.com/products"
 
 if [[ "${DEPLOY_SKIP_BFF:-}" != "1" ]]; then
   echo "Also deploying BFF (set DEPLOY_SKIP_BFF=1 to skip)"

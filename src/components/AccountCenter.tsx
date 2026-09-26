@@ -154,9 +154,11 @@ export default function AccountCenter({ sync, data }: { sync: CloudSync; data: A
 
           <div className="account-links">
             {admin ? <a href="#admin">管理后台</a> : null}
-            <a href={`${ACCOUNT_CENTER_URL}/`} target="_blank" rel="noreferrer">
-              账号中心设置
-            </a>
+            {ACCOUNT_CENTER_URL ? (
+              <a href={`${ACCOUNT_CENTER_URL}/`} target="_blank" rel="noreferrer">
+                账号中心设置
+              </a>
+            ) : null}
             <a href={logoutUrl()} onClick={() => void clearNativeSession()}>
               退出登录
             </a>

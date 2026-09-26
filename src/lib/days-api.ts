@@ -1,14 +1,9 @@
 import { isNativeApp } from './native'
 import { getNativeSessionToken } from './native-auth'
-
-export const DAYS_API_ORIGIN = 'https://www.yydsxwh.com'
+import { absoluteApiUrl } from './public-env'
 
 export function daysApiUrl(path: string): string {
-  if (typeof window === 'undefined') return `${DAYS_API_ORIGIN}${path}`
-  if (isNativeApp()) return `${DAYS_API_ORIGIN}${path}`
-  const { protocol, origin } = window.location
-  if (protocol === 'http:' || protocol === 'https:') return `${origin}${path}`
-  return `${DAYS_API_ORIGIN}${path}`
+  return absoluteApiUrl(path, isNativeApp())
 }
 
 export async function daysFetch(path: string, init: RequestInit = {}): Promise<Response> {

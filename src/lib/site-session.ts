@@ -1,5 +1,6 @@
 import type { UserSub } from '@yydsxwh/shared/auth/identity'
 import { daysApiUrl, daysFetch } from './days-api'
+import { configuredAccountUrl } from './public-env'
 
 /**
  * 日事自己的会话。Web 用 HttpOnly Cookie，Android 用一次性 handoff 换到的
@@ -13,7 +14,12 @@ export type SiteUser = {
   email?: string
 }
 
-export const ACCOUNT_CENTER_URL = 'https://account.yydsxwh.com'
+export function accountCenterUrl(): string {
+  return configuredAccountUrl()
+}
+
+/** @deprecated 使用 accountCenterUrl()。空字符串表示这次构建没有配置账号中心地址。 */
+export const ACCOUNT_CENTER_URL = accountCenterUrl()
 
 export async function fetchSiteUser(signal?: AbortSignal): Promise<SiteUser | null> {
   const response = await daysFetch('/api/days/auth/session', { signal })

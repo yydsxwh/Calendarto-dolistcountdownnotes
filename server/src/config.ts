@@ -45,12 +45,25 @@ function requiredInProduction(name: string, value: string | undefined, fallback:
   return fallback
 }
 
+function publicOriginFrom(env: NodeJS.ProcessEnv): string {
+  const trimmed = (env.RISHI_PUBLIC_ORIGIN || '').trim().replace(/\/+$/, '')
+  if (trimmed) return trimmed
+  if ((env.NODE_ENV || '').toLowerCase() === 'production') {
+    throw new Error('BLOCKED: missing RISHI_PUBLIC_ORIGIN')
+  }
+  return 'http://127.0.0.1:5173'
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): DaysConfig {
-  const publicOrigin = (env.RISHI_PUBLIC_ORIGIN || 'https://www.yydsxwh.com').replace(/\/+$/, '')
+  const publicOrigin = publicOriginFrom(env)
+  const production = (env.NODE_ENV || '').toLowerCase() === 'production'
+  const dataDir = env.DAYS_SYNC_DATA_DIR?.trim()
+  if (!dataDir && production) throw new Error('BLOCKED: missing DAYS_SYNC_DATA_DIR')
+
   return {
     host: env.DAYS_SYNC_HOST || '127.0.0.1',
     port: Number(env.DAYS_SYNC_PORT || 3120),
-    dataDir: env.DAYS_SYNC_DATA_DIR || '/var/lib/kemiao-days',
+    dataDir: dataDir || './data',
     allowedOrigins: splitList(
       env.DAYS_SYNC_ALLOWED_ORIGINS,
       `${publicOrigin},https://localhost,capacitor://localhost,http://localhost:5173,http://127.0.0.1:5173`,
@@ -64,12 +77,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DaysConfig {
     accountClientSecret: env.ACCOUNT_CLIENT_SECRET || '',
     accountRedirectUri: env.ACCOUNT_REDIRECT_URI || `${publicOrigin}/api/days/auth/callback`,
     accountScopes: env.ACCOUNT_SCOPES || 'openid profile email offline_access',
-    // 未设置时保留旧主站会话，方便一次性迁移。显式 off 或空字符串则完全不访问主站。
-    wwwSessionUrl: optionalUrl(env.DAYS_SYNC_SESSION_URL, 'https://www.yydsxwh.com/api/auth/session'),
+    // 未设置时按当前公网 origin 推导；留空或 off 时完全不访问旧主站会话。
+    wwwSessionUrl: optionalUrl(env.DAYS_SYNC_SESSION_URL, `${publicOrigin}/api/auth/session`),
     platformBaseUrl: (env.PLATFORM_API_URL || env.PLATFORM_BASE_URL || '').replace(/\/+$/, ''),
     platformServiceToken: env.PLATFORM_SERVICE_TOKEN || '',
     platformClientId: env.PLATFORM_CLIENT_ID || 'rishi',
-    wwwOcrUrl: env.DAYS_OCR_FALLBACK_URL || 'https://www.yydsxwh.com/api/days/timetable-ocr',
+    // OCR 是可选回退能力；留空/off 时不让它拖住日事核心功能。
+    wwwOcrUrl: optionalUrl(env.DAYS_OCR_FALLBACK_URL, `${publicOrigin}/api/days/timetable-ocr`),
     nativeHandoffUri: env.RISHI_NATIVE_HANDOFF_URI || 'kemiao-days://auth',
     adminSubs: splitList(env.RISHI_ADMIN_SUBS, ''),
     configEncryptionKey: env.RISHI_CONFIG_ENCRYPTION_KEY || '',

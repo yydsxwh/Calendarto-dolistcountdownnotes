@@ -22,6 +22,13 @@ export type DaysConfig = {
   configEncryptionKey: string
 }
 
+function optionalUrl(value: string | undefined, fallback: string): string {
+  if (value === undefined) return fallback
+  const trimmed = value.trim()
+  if (!trimmed || trimmed === 'off') return ''
+  return trimmed.replace(/\/+$/, '')
+}
+
 function splitList(value: string | undefined, fallback: string): string[] {
   return (value || fallback)
     .split(',')
@@ -57,7 +64,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DaysConfig {
     accountClientSecret: env.ACCOUNT_CLIENT_SECRET || '',
     accountRedirectUri: env.ACCOUNT_REDIRECT_URI || `${publicOrigin}/api/days/auth/callback`,
     accountScopes: env.ACCOUNT_SCOPES || 'openid profile email offline_access',
-    wwwSessionUrl: env.DAYS_SYNC_SESSION_URL || 'https://www.yydsxwh.com/api/auth/session',
+    // 未设置时保留旧主站会话，方便一次性迁移。显式 off 或空字符串则完全不访问主站。
+    wwwSessionUrl: optionalUrl(env.DAYS_SYNC_SESSION_URL, 'https://www.yydsxwh.com/api/auth/session'),
     platformBaseUrl: (env.PLATFORM_API_URL || env.PLATFORM_BASE_URL || '').replace(/\/+$/, ''),
     platformServiceToken: env.PLATFORM_SERVICE_TOKEN || '',
     platformClientId: env.PLATFORM_CLIENT_ID || 'rishi',

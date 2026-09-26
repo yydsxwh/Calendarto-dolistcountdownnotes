@@ -35,7 +35,13 @@ function jwksFor(issuer: string) {
   const url = `${issuer}/.well-known/jwks.json`
   const cached = jwksCache.get(url)
   if (cached) return cached
-  const jwks = createRemoteJWKSet(new URL(url))
+  // 登录时才拉 JWKS。缓存命中后 Account 短暂不可用，不影响已签发且未过期的 ID Token 校验；
+  // 已建立的 rishi_session 根本不走这里。
+  const jwks = createRemoteJWKSet(new URL(url), {
+    timeoutDuration: 2_500,
+    cooldownDuration: 30_000,
+    cacheMaxAge: 10 * 60_000,
+  })
   jwksCache.set(url, jwks)
   return jwks
 }

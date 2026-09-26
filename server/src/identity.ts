@@ -2,6 +2,7 @@ import type { IncomingMessage } from 'node:http'
 import type { DaysConfig } from './config'
 import { readCookies } from './http'
 import { isSessionRevoked, sessionFromRequest } from './session'
+import { markLegacyChecked, readUser } from './users'
 
 export type Caller = {
   key: string
@@ -13,10 +14,20 @@ export type Caller = {
   legacyId: string | null
 }
 
+/**
+ * 旧主站会话只用于一次性迁移。主站挂了不能拖住已经持有 rishi_session 的请求。
+ * 1.5s 是「还能等一下迁移」的上限，不是同步接口的预算。
+ */
+const WWW_SESSION_TIMEOUT_MS = 1_500
+const WWW_CACHE_TTL_MS = 10_000
+/** 主站探活失败后，同一用户短时间内不再打主站，避免每次同步都空等超时。 */
+const WWW_FAILURE_COOLDOWN_MS = 60_000
+
 const wwwCache = new Map<string, { user: Caller | null; expires: number }>()
+const wwwFailureUntil = new Map<string, number>()
 
 async function resolveWwwUser(config: DaysConfig, cookie: string | undefined): Promise<Caller | null> {
-  if (!cookie) return null
+  if (!cookie || !config.wwwSessionUrl) return null
   const { createHash } = await import('node:crypto')
   const key = createHash('sha256').update(cookie).digest('hex')
   const cached = wwwCache.get(key)
@@ -25,7 +36,7 @@ async function resolveWwwUser(config: DaysConfig, cookie: string | undefined): P
   try {
     response = await fetch(config.wwwSessionUrl, {
       headers: { cookie, accept: 'application/json' },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(WWW_SESSION_TIMEOUT_MS),
     })
   } catch {
     throw new Error('SESSION_UNAVAILABLE')
@@ -43,22 +54,42 @@ async function resolveWwwUser(config: DaysConfig, cookie: string | undefined): P
         legacyId: String(body.user.id),
       }
     : null
-  wwwCache.set(key, { user, expires: Date.now() + 10_000 })
+  wwwCache.set(key, { user, expires: Date.now() + WWW_CACHE_TTL_MS })
   if (wwwCache.size > 500) wwwCache.clear()
   return user
+}
+
+/**
+ * 已登录日事的用户，身份以本地 session 为准。
+ * 问主站只是为了把旧 userId 的云端文件迁一次；问失败、主站宕机，都不影响本次请求。
+ */
+async function legacyIdForRishiSession(
+  config: DaysConfig,
+  sub: string,
+  cookie: string | undefined,
+): Promise<string | null> {
+  const user = await readUser(config, sub)
+  if (user?.legacyCheckedAt || user?.migratedAt) return user.legacyUserIds[0] ?? null
+  const cooled = wwwFailureUntil.get(sub) ?? 0
+  if (cooled > Date.now()) return null
+  if (!cookie || !config.wwwSessionUrl) return null
+  try {
+    const www = await resolveWwwUser(config, cookie)
+    wwwFailureUntil.delete(sub)
+    const legacyId = www?.legacyId ?? null
+    await markLegacyChecked(config, sub, legacyId)
+    return legacyId
+  } catch {
+    wwwFailureUntil.set(sub, Date.now() + WWW_FAILURE_COOLDOWN_MS)
+    return null
+  }
 }
 
 export async function resolveCaller(req: IncomingMessage, config: DaysConfig): Promise<Caller | null> {
   const session = sessionFromRequest(req, config)
   if (session) {
     if (await isSessionRevoked(config, session.sid)) return null
-    let legacyId: string | null = null
-    try {
-      const www = await resolveWwwUser(config, req.headers.cookie)
-      legacyId = www?.legacyId || null
-    } catch {
-      legacyId = null
-    }
+    const legacyId = await legacyIdForRishiSession(config, session.sub, req.headers.cookie)
     return {
       key: session.sub,
       sub: session.sub,

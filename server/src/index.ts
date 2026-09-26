@@ -343,6 +343,10 @@ export function createDaysServer(config: DaysConfig) {
       if (path === '/api/days/health') {
         sendJson(res, 200, {
           ok: true,
+          service: 'rishi',
+          status: 'ok',
+          version: '0.1.0',
+          timestamp: new Date().toISOString(),
           oidc: oidcConfigured(config),
           platform: platformConfigured(config),
         })

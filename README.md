@@ -43,6 +43,12 @@ npm run build
 npx --yes tsx src/lib/timetable-import.selftest.ts
 ```
 
+## 和主站的关系
+
+日事的页面和 API 不跑在主站 Node 进程里。页面是 Nginx 上的静态文件（`/products/days/`），接口是本机 `kemiao-days-sync`（`127.0.0.1:3120`）。主站进程停了，已经打开的日事、本地数据和已登录后的云同步仍然可用。
+
+还依赖主站的只有可选能力：旧账号的一次性数据迁移、课表识别在 Platform 未配置时的回退、便签导出到网页文档。这些失败时日历、待办、课表和提醒不受影响。新登录走账号中心，不走主站。
+
 线上入口：
 
 - 产品栏：https://www.yydsxwh.com/products

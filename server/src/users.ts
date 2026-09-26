@@ -16,6 +16,8 @@ export type RishiUser = {
   legacyUserIds: string[]
   migratedFrom?: string
   migratedAt?: string
+  /** 已经向主站确认过旧 userId（无论有没有可迁数据）。之后不再为每次请求打主站。 */
+  legacyCheckedAt?: string
 }
 
 function userPath(config: DaysConfig, sub: string) {
@@ -42,6 +44,7 @@ export async function upsertUser(config: DaysConfig, claims: IdTokenClaims): Pro
     legacyUserIds: existing?.legacyUserIds || [],
     migratedFrom: existing?.migratedFrom,
     migratedAt: existing?.migratedAt,
+    legacyCheckedAt: existing?.legacyCheckedAt,
   }
   await writeFile(userPath(config, claims.sub), JSON.stringify(next))
   return next
@@ -53,6 +56,18 @@ export async function readUser(config: DaysConfig, sub: string): Promise<RishiUs
   } catch {
     return null
   }
+}
+
+export async function markLegacyChecked(
+  config: DaysConfig,
+  sub: string,
+  legacyId: string | null,
+): Promise<void> {
+  const user = await readUser(config, sub)
+  if (!user) return
+  if (legacyId && !user.legacyUserIds.includes(legacyId)) user.legacyUserIds.push(legacyId)
+  if (!user.legacyCheckedAt) user.legacyCheckedAt = new Date().toISOString()
+  await writeFile(userPath(config, sub), JSON.stringify(user))
 }
 
 export async function rememberLegacyId(config: DaysConfig, sub: string, legacyId: string): Promise<void> {
